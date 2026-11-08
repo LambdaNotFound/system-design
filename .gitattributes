@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Hooks must keep LF line endings or /bin/sh can't run them
+.githooks/* text eol=lf
+
+# Excalidraw drawings embed the scene as one long encoded line; text diffs are noise
+*.excalidraw.svg -diff

@@ -1,0 +1,10 @@
+{
+  // Excalidraw: save .excalidraw.svg drawings with a solid white background so
+  // they stay readable in GitHub's dark mode. These match the extension's
+  // defaults; they're pinned here so they don't get switched off by accident.
+  "excalidraw.image": {
+    "exportScale": 1,
+    "exportWithBackground": true,
+    "exportWithDarkMode": false
+  }
+}
