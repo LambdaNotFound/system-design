@@ -20,6 +20,8 @@ Building blocks and theory live in **[concepts/](concepts/)**.
 .githooks/        commit message hooks
 concepts/         notes on building blocks and theory, linked from the designs
 design-doc/       one folder per system: requirement.md, README.md (the doc) + diagrams/
+evals/            tests for the skills: fixtures and routing cases (see evals/README.md)
+scripts/          check-skills lints the skills; eval-skills runs their eval cases
 src/              Rust workspace, one crate per system or concept
 ```
 
@@ -31,6 +33,8 @@ src/              Rust workspace, one crate per system or concept
 | Design | `/new-design <system>` | Claude coaches you through each section, then writes it up |
 | Review | `/review-design <system>` | Staff-level critique, logged in the doc's Review log |
 | Build | `/implement-design <system>` | Rust skeleton and failing tests; you write the `todo!()`s |
+
+The skills have their own tests: `scripts/check-skills` lints them and `scripts/eval-skills` runs their eval cases. See [evals/](evals/).
 
 Architecture diagrams are drawn by hand in Excalidraw; sequence and flow diagrams are Mermaid inside the docs. See [design-doc/](design-doc/).
 

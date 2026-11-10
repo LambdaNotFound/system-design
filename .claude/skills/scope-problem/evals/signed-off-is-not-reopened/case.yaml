@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: signed-off-is-not-reopened
+expected_outcome: |
+  The requirement doc is already signed off. The skill says scoping is done, does not reopen it,
+  and gives the handoff step.
+context:
+  scaffold_script: place-files.sh

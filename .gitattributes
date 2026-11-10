@@ -6,3 +6,7 @@
 
 # Excalidraw drawings embed the scene as one long encoded line; text diffs are noise
 *.excalidraw.svg -diff
+
+# Scripts must keep LF line endings to run
+scripts/* text eol=lf
+*.sh text eol=lf

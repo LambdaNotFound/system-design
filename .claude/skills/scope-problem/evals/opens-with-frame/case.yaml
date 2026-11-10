@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: opens-with-frame
+expected_outcome: |
+  From a repo with no systems yet, the skill opens the interview in one message: what this is,
+  the five frame questions, and an invitation to dump everything unstructured. It designs nothing.
+context:
+  scaffold_script: place-files.sh

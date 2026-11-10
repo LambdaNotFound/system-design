@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: concept-question-fires-nothing
+expected_outcome: |
+  A concept question about rate limiting is answered directly. It shares vocabulary with the
+  skills but needs none of them.
+context:
+  scaffold_script: place-files.sh

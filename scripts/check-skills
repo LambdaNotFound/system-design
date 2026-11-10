@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""Lint every skill under .claude/skills/ and its eval cases. Free: no model runs.
+
+    scripts/check-skills            lint all skills
+    scripts/check-skills <skill>    lint one
+
+Errors make the script exit 1 (the pre-commit hook then blocks the commit).
+Warnings are printed and do not block. The rules and where they come from are
+in evals/README.md.
+"""
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SKILLS = ROOT / ".claude" / "skills"
+ROUTING = ROOT / "evals" / "routing" / "evals"
+
+MAX_DESCRIPTION = 1024      # Anthropic's limit for the description field
+MAX_BODY_LINES = 500        # Anthropic's guidance for SKILL.md
+MAX_BODY_TOKENS = 5000      # what Claude Code keeps of a skill after compaction
+CHARS_PER_TOKEN = 3.5       # conservative estimate; no tokenizer needed
+CONTENTS_AFTER_LINES = 100  # longer supporting files need a contents list
+MIN_CASES = 3
+KINDS = ["trigger", "first-turn", "mid-state", "artifact"]
+RESERVED = {"results", "mocks", "files", "node_modules"}
+CASE_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
+SKILL_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+
+errors, warnings = [], []
+
+
+def rel(path):
+    return str(Path(path).relative_to(ROOT))
+
+
+def error(where, message):
+    errors.append(f"{where}: {message}")
+
+
+def warn(where, message):
+    warnings.append(f"{where}: {message}")
+
+
+def split_frontmatter(text):
+    """Return (fields, body). fields is None when there is no frontmatter block."""
+    if not text.startswith("---\n"):
+        return None, text
+    end = text.find("\n---", 4)
+    if end == -1:
+        return None, text
+    fields, key = {}, None
+    for line in text[4:end].splitlines():
+        match = re.match(r"^([A-Za-z_][\w-]*):\s*(.*)$", line)
+        if match:
+            key = match.group(1)
+            fields[key] = match.group(2).strip()
+        elif key and line.startswith((" ", "\t")):
+            fields[key] = (fields[key].lstrip(">|-").strip() + " " + line.strip()).strip()
+    body = text[end + 4:]
+    return fields, body.lstrip("\n")
+
+
+def unquote(value):
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
+def inline_list(value):
+    return [unquote(item) for item in value.strip().strip("[]").split(",") if item.strip()]
+
+
+def prose_lines(text):
+    """Lines outside fenced code blocks, with their line numbers."""
+    fenced = False
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced:
+            yield number, line
+
+
+def check_links(md_file):
+    text = md_file.read_text(encoding="utf-8")
+    for number, line in prose_lines(text):
+        # Inline code and HTML comments describe links; they are not links in this file.
+        visible = re.sub(r"<!--.*?-->", "", re.sub(r"`[^`]*`", "", line))
+        for target in LINK.findall(visible):
+            if target.startswith(("http://", "https://", "mailto:", "#")) or "<" in target:
+                continue
+            path = (md_file.parent / target.split("#")[0]).resolve()
+            if not path.exists():
+                error(f"{rel(md_file)}:{number}", f"link to a file that does not exist: {target}")
+
+
+def check_skill_file(skill_dir):
+    skill_md = skill_dir / "SKILL.md"
+    where = rel(skill_md)
+    text = skill_md.read_text(encoding="utf-8")
+    fields, body = split_frontmatter(text)
+    if fields is None:
+        error(where, "no frontmatter block")
+        return
+    name = unquote(fields.get("name", ""))
+    description = unquote(fields.get("description", ""))
+    if name != skill_dir.name:
+        error(where, f"name is '{name}', but the folder is '{skill_dir.name}'")
+    if not SKILL_NAME.match(name):
+        error(where, "name must be lowercase letters, digits and hyphens, 64 characters at most")
+    if not description:
+        error(where, "description is empty")
+    if len(description) > MAX_DESCRIPTION:
+        error(where, f"description is {len(description)} characters; the limit is {MAX_DESCRIPTION}")
+    if "<" in description or ">" in description:
+        error(where, "description contains an angle bracket, which shows up escaped in the skill list")
+
+    body_lines = body.count("\n") + 1
+    if body_lines > MAX_BODY_LINES:
+        error(where, f"body is {body_lines} lines; the limit is {MAX_BODY_LINES}")
+    tokens = int(len(body) / CHARS_PER_TOKEN)
+    if tokens > MAX_BODY_TOKENS:
+        error(where, f"body is about {tokens} tokens (estimated); past {MAX_BODY_TOKENS}, "
+                     "its tail is lost when a long session is compacted. Move detail to a supporting file")
+    for number, line in enumerate(text.splitlines(), 1):
+        if re.search(r"\$\d", line):
+            error(f"{where}:{number}", "a dollar sign before a digit is replaced with the skill's "
+                                       "arguments; move that text to a supporting file")
+
+    for md_file in sorted(skill_dir.glob("*.md")):
+        check_links(md_file)
+        if md_file.name == "SKILL.md":
+            continue
+        support = md_file.read_text(encoding="utf-8")
+        if support.count("\n") > CONTENTS_AFTER_LINES and "## Contents" not in support:
+            warn(rel(md_file), f"over {CONTENTS_AFTER_LINES} lines with no '## Contents' list")
+
+
+def case_dirs(evals_dir):
+    if not evals_dir.is_dir():
+        return []
+    return sorted(d for d in evals_dir.iterdir()
+                  if d.is_dir() and d.name not in RESERVED and (d / "prompt.md").exists())
+
+
+def check_case(case_dir):
+    """Lint one case folder and return its tags."""
+    where = rel(case_dir)
+    if not CASE_NAME.match(case_dir.name) or case_dir.name in {"true", "false", "null"}:
+        error(where, "a case name is lowercase letters, digits and hyphens, starting with a letter")
+    fields, prompt = split_frontmatter((case_dir / "prompt.md").read_text(encoding="utf-8"))
+    if fields is None:
+        error(f"{where}/prompt.md", "no settings block")
+        fields = {}
+    if not prompt.strip():
+        error(f"{where}/prompt.md", "the prompt is empty")
+    unknown = set(fields) - {"tags", "max_turns", "timeout_seconds", "allowed_tools"}
+    if unknown:
+        error(f"{where}/prompt.md", f"unknown setting: {', '.join(sorted(unknown))}")
+
+    graders = sorted((case_dir / "graders").glob("*.md")) if (case_dir / "graders").is_dir() else []
+    if not graders:
+        error(where, "no graders: a case with none fails to load")
+    for grader in graders:
+        grader_fields, statement = split_frontmatter(grader.read_text(encoding="utf-8"))
+        if grader_fields is None or "type" not in grader_fields:
+            error(rel(grader), "no settings block with a 'type:' line; the runner ignores this file")
+        elif grader_fields["type"] == "llm" and not statement.strip():
+            error(rel(grader), "the statement to check is empty")
+
+    case_yaml = case_dir / "case.yaml"
+    if case_yaml.exists():
+        text = case_yaml.read_text(encoding="utf-8")
+        name = re.search(r"^name:\s*(\S+)\s*$", text, re.M)
+        if not name or unquote(name.group(1)) != case_dir.name:
+            error(rel(case_yaml), "name must be the same as the folder name")
+        if not re.search(r"^schema_version:\s*[\"']", text, re.M):
+            error(rel(case_yaml), "schema_version must be quoted, or it reads as a number")
+        script = re.search(r"^\s+scaffold_script:\s*(\S+)\s*$", text, re.M)
+        if script:
+            path = case_dir / unquote(script.group(1))
+            if not path.exists():
+                error(rel(case_yaml), f"scaffold_script {script.group(1)} does not exist")
+            elif not os.access(path, os.X_OK):
+                error(rel(path), "not executable (chmod +x)")
+    return inline_list(fields.get("tags", ""))
+
+
+def check_coverage(skill, own_tags, routing_tags):
+    """Warn about the minimum set of cases a skill is meant to have."""
+    kinds = {tag for tags in own_tags for tag in tags}
+    kinds |= {"trigger" for tags in routing_tags if skill in tags and "trigger" in tags}
+    total = len(own_tags) + sum(1 for tags in routing_tags if skill in tags)
+    missing = [kind for kind in KINDS if kind not in kinds]
+    if total == 0:
+        warn(skill, f"no eval cases yet (owes: {', '.join(KINDS)})")
+        return
+    if missing:
+        warn(skill, f"no eval case of kind: {', '.join(missing)}")
+    if total < MIN_CASES:
+        warn(skill, f"{total} eval cases; the minimum is {MIN_CASES}")
+
+
+def run_skill_lint(skill_dir):
+    """A skill may ship its own checks as evals/lint.py; a non-zero exit is an error."""
+    script = skill_dir / "evals" / "lint.py"
+    if not script.exists():
+        return
+    done = subprocess.run([sys.executable, str(script)], cwd=str(ROOT),
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+    if done.returncode != 0:
+        for line in done.stdout.strip().splitlines() or ["failed with no output"]:
+            error(rel(script), line)
+
+
+def main():
+    wanted = set(sys.argv[1:])
+    skill_dirs = sorted(d for d in SKILLS.iterdir() if (d / "SKILL.md").exists())
+    unknown = wanted - {d.name for d in skill_dirs}
+    if unknown:
+        sys.exit(f"check-skills: no such skill: {', '.join(sorted(unknown))}")
+
+    routing_tags = [check_case(case) for case in case_dirs(ROUTING)]
+    cases = len(routing_tags)
+    checked = 0
+    for skill_dir in skill_dirs:
+        if wanted and skill_dir.name not in wanted:
+            continue
+        checked += 1
+        check_skill_file(skill_dir)
+        own_tags = [check_case(case) for case in case_dirs(skill_dir / "evals")]
+        cases += len(own_tags)
+        check_coverage(skill_dir.name, own_tags, routing_tags)
+        run_skill_lint(skill_dir)
+
+    for line in errors:
+        print(f"  error  {line}")
+    for line in warnings:
+        print(f"  warn   {line}")
+    print(f"check-skills: {checked} skills, {cases} eval cases, "
+          f"{len(errors)} errors, {len(warnings)} warnings")
+    sys.exit(1 if errors else 0)
+
+
+if __name__ == "__main__":
+    main()

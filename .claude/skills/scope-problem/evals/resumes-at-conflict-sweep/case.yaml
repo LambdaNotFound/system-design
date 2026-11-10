@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: resumes-at-conflict-sweep
+expected_outcome: |
+  The record has every progress line up to Reader test and no Swept line, and its Conflicts table
+  already holds a decided row from the interview. The skill resumes at phase 6 step 1, the conflict
+  sweep, and puts the clash it finds to the user instead of resolving it.
+  Regression: a decided conflict in the table used to make a resume skip the sweep.
+context:
+  scaffold_script: place-files.sh

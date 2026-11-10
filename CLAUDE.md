@@ -6,7 +6,11 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 
 ```
 .claude/skills/     scope-problem · new-design · review-design · implement-design
-.githooks/          commit-msg checks the commit format; prepare-commit-msg adds the date
+.githooks/          commit-msg checks the commit format; prepare-commit-msg adds the date;
+                    pre-commit lints the skills
+evals/              shared fixtures and routing cases for the skill evals; each skill's own
+                    cases are in .claude/skills/<skill>/evals/
+scripts/            check-skills (lint) · eval-skills (runs the eval cases)
 concepts/           <slug>.md notes on building blocks and theory, linked from the designs
 design-doc/<slug>/  requirement.md is the signed-off requirements; scoping.md is its working record;
                     README.md is the design doc; diagrams/ holds its Excalidraw drawings
@@ -25,6 +29,15 @@ README.md           index of all designs (status · started · code)
 - **Code: kata style.** Claude writes the crate skeleton, types and failing tests, and leaves the core logic as `todo!()` for the user. Write the full implementation only when asked.
 - **Diagrams:** Claude writes sequence and flow diagrams in Mermaid, inline in the doc. Architecture diagrams are `diagrams/*.excalidraw.svg`, drawn by the user: Claude writes a brief of what to draw, then reviews the drawing. To look at a drawing on macOS, render it with `qlmanage -t -s 1600 -o <scratchpad> <file>` and read the PNG; elsewhere, read the SVG's `<text>` labels.
 - **Reviews** go in the dated Review log at the bottom of each design doc.
+
+## Changing a skill
+
+The flow, the case format and what each case kind checks are in `evals/README.md`.
+
+- After editing a skill, run `scripts/check-skills`. It's free, and the pre-commit hook runs it too.
+- `scripts/eval-skills <skill>` runs that skill's eval cases once each; `--full` runs them three times with a baseline. Both make billed model runs, so run them when the user asks or agrees. Use `--full` before committing a change to what a skill does.
+- A skill counts as implemented when it has at least three eval cases, covering the trigger, first-turn, mid-state and artifact kinds.
+- A bug found in a skill gets a regression case in the same change as its fix.
 
 ## Coaching style
 

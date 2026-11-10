@@ -1,0 +1,19 @@
+#!/bin/sh
+# Runs the free skill lint (scripts/check-skills) when a commit touches a skill,
+# an eval case or the eval scripts, and blocks the commit on an error.
+# Warnings do not block. `git commit --no-verify` skips this hook.
+
+if ! git diff --cached --name-only | grep -Eq '^(\.claude/skills/|evals/|scripts/(check|eval)-skills$)'; then
+  exit 0
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "pre-commit: python3 not found, so the skill lint was skipped" >&2
+  exit 0
+fi
+
+root=$(git rev-parse --show-toplevel)
+if ! "$root/scripts/check-skills"; then
+  echo "pre-commit: fix the errors above, or commit with --no-verify" >&2
+  exit 1
+fi
