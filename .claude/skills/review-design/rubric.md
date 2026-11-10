@@ -5,6 +5,7 @@ A map of what to look at, not a form to fill in. Skip what doesn't apply to this
 ## Requirements and scope
 - Non-functional requirements are quantified: latency percentiles, availability, durability, and the consistency each operation needs.
 - Scope fits the problem: core features in, everything else explicitly out.
+- With a signed-off `requirement.md`: something in the design meets every FR and NFR, nothing contradicts its `Out of scope:` line, and the `(assumed)` rows the design leans on are called out. A requirement that looks wrong is a finding for the user. It's fixed by an amendment to that doc, not by editing it.
 
 ## Estimates
 - Math and units are right; peak is separated from average; the read:write ratio is stated.

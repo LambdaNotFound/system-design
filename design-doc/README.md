@@ -4,12 +4,16 @@ One folder per system, named by its slug:
 
 ```
 design-doc/url-shortener/
+├── requirement.md                    the signed-off requirements
+├── scoping.md                        the working record behind them
 ├── README.md                         the design doc
 └── diagrams/
     └── architecture.excalidraw.svg   drawn in Excalidraw
 ```
 
-Start one in Claude Code with `/new-design <system>`. It creates the folder from the [template](../.claude/skills/new-design/template.md) and adds the system to the [index](../README.md#designs).
+Start one in Claude Code with `/scope-problem <system>`. It creates the folder, interviews you, and writes `requirement.md` to this [spec](../.claude/skills/scope-problem/requirement-spec.md), and adds the system to the [index](../README.md#designs). Then `/new-design <system>` creates the design doc from the [template](../.claude/skills/new-design/template.md).
+
+A problem that splits into several pieces gets one folder per piece, named `<slug>-<piece>`. Each piece's `requirement.md` names its parent on a `Parent:` line.
 
 ## Drawing in Excalidraw
 

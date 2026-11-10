@@ -11,7 +11,8 @@ The system or concept is in the skill's arguments or the conversation.
 ## 0. Check first
 
 - Run `cargo --version`. If Rust isn't installed, stop and tell the user to install it with rustup (https://rustup.rs). Don't write Cargo files you can't build.
-- The design doc (`design-doc/<slug>/README.md`) or concept note (`concepts/<slug>.md`) should be at least through its high-level design. If it isn't, suggest finishing it first.
+- Read `design-doc/<slug>/requirement.md` if it exists (`/scope-problem` writes it). A piece with `Route: code` has no design doc: its signed-off requirement doc is the basis, and so is the three-line doc of a `Status: closed` early exit.
+- Otherwise the design doc (`design-doc/<slug>/README.md`) or concept note (`concepts/<slug>.md`) should be at least through its high-level design. If it isn't, suggest finishing it first.
 
 ## 1. Agree on the scope
 
@@ -42,7 +43,7 @@ Then, from `src/`, run `cargo new --lib <slug>`. Check that `<slug>` was added t
 
 - Public types and signatures that use the design doc's vocabulary. Doc comments state each contract and point to the doc section (`/// See design-doc/<slug>/README.md §6.`).
 - The core logic is `todo!("hint")`. The hint names the key idea without giving the solution away.
-- Tests pin down the behavior the doc promises, including the edge cases it calls out: boundaries, concurrency, failure handling. They must compile, and fail only at the `todo!()`s.
+- Tests pin down the behavior the doc promises, including the edge cases it calls out: boundaries, concurrency, failure handling. Where a test proves a row of the requirement doc, name the row in its doc comment (`/// Proves FR2.`). They must compile, and fail only at the `todo!()`s.
 - Std only by default. Add a dependency only when the mechanism needs it (e.g. `tokio` for async I/O), and say why.
 - Check from `src/`: `cargo test -p <slug>` compiles and the tests fail at `todo!()`; `cargo clippy -p <slug> --all-targets` shows nothing beyond warnings caused by the stubs.
 
@@ -50,9 +51,10 @@ Then, from `src/`, run `cargo new --lib <slug>`. Check that `<slug>` was added t
 
 - Design: in the doc header, set `**Code:** [src/<slug>](../../src/<slug>/)`, and fill in the Code column of the root README's Designs table.
 - Concept: add a `**Code:** [src/<slug>](../src/<slug>/)` line under the note's title.
+- A `code` piece with no design doc: fill in the Code column of its row in the root README's Designs table.
 
 ## 5. Review the user's implementation
 
-When the user says they're done, run the tests, then review like a design reviewer. Does the code keep the doc's invariants? What breaks under concurrency or at the boundaries? Which test is missing? Ask before rewriting anything. Once the tests pass and the review is settled, set the design's status to **Implemented** in the doc header and the README.
+When the user says they're done, run the tests, then review like a design reviewer. Does the code keep the doc's invariants? What breaks under concurrency or at the boundaries? Which test is missing? Ask before rewriting anything. Once the tests pass and the review is settled, set the status to **Implemented** in the design doc's header, when there is one, and in the README.
 
 If the user asks for the solution, write the full implementation, with comments on the non-obvious choices.

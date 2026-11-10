@@ -10,6 +10,7 @@ The system is in the skill's arguments or the conversation. If it's unclear, lis
 
 ## 1. Read everything first
 
+- `design-doc/<slug>/requirement.md`, if it exists: the requirements the user signed off in `/scope-problem`. The design is judged against its rows, so cite them by ID (`FR2`, `NFR1`).
 - `design-doc/<slug>/README.md`, including earlier Review log entries. Don't repeat findings that were resolved; do raise open ones again.
 - The drawings in `design-doc/<slug>/diagrams/` (CLAUDE.md says how to view them).
 - The concept notes it links to, and `src/<slug>/` if it exists: does the code do what the doc says?

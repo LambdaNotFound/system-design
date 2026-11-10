@@ -5,6 +5,7 @@
 > **Summary.** <!-- Write this last: what the system does, and the one or two problems that make it hard. -->
 
 ## 1. Requirements
+<!-- Scoped with /scope-problem: replace the subsections below with one line, "Signed off MM/DD/YY: [requirement.md](requirement.md)". Not scoped: fill them in. -->
 
 ### Functional
 <!-- The 3–5 core capabilities. Everything else goes under "Out of scope". -->

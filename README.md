@@ -7,9 +7,9 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 | System | Status | Started | Code |
 |---|---|---|---|
 
-_None yet. Start one in Claude Code with `/new-design <system>`._
+_None yet. Start one in Claude Code with `/scope-problem <system>`._
 
-**Status:** Drafting → Reviewed (no blocking review findings left) → Implemented (core mechanism built and tested)
+**Status:** Scoping → Scoped (requirements signed off) → Drafting → Reviewed (no blocking review findings left) → Implemented (core mechanism built and tested)
 
 Building blocks and theory live in **[concepts/](concepts/)**.
 
@@ -19,7 +19,7 @@ Building blocks and theory live in **[concepts/](concepts/)**.
 .claude/skills/   Claude Code skills for the workflow below
 .githooks/        commit message hooks
 concepts/         notes on building blocks and theory, linked from the designs
-design-doc/       one folder per system: README.md (the doc) + diagrams/
+design-doc/       one folder per system: requirement.md, README.md (the doc) + diagrams/
 src/              Rust workspace, one crate per system or concept
 ```
 
@@ -27,6 +27,7 @@ src/              Rust workspace, one crate per system or concept
 
 | Step | In Claude Code | What happens |
 |---|---|---|
+| Scope | `/scope-problem <system>` | Claude interviews you, then writes the requirement doc you sign off |
 | Design | `/new-design <system>` | Claude coaches you through each section, then writes it up |
 | Review | `/review-design <system>` | Staff-level critique, logged in the doc's Review log |
 | Build | `/implement-design <system>` | Rust skeleton and failing tests; you write the `todo!()`s |

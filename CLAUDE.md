@@ -5,10 +5,11 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 ## Layout
 
 ```
-.claude/skills/     new-design · review-design · implement-design
+.claude/skills/     scope-problem · new-design · review-design · implement-design
 .githooks/          commit-msg checks the commit format; prepare-commit-msg adds the date
 concepts/           <slug>.md notes on building blocks and theory, linked from the designs
-design-doc/<slug>/  README.md is the design doc; diagrams/ holds its Excalidraw drawings
+design-doc/<slug>/  requirement.md is the signed-off requirements; scoping.md is its working record;
+                    README.md is the design doc; diagrams/ holds its Excalidraw drawings
 src/                Cargo workspace; src/<slug>/ is one crate per system or concept
 README.md           index of all designs (status · started · code)
 ```
@@ -18,6 +19,7 @@ README.md           index of all designs (status · started · code)
 
 ## How we work
 
+- **Scoping: interview, then sign off.** `/scope-problem` comes before a design. Claude interviews the user in rounds of numbered questions, each with a proposed default to correct, reads this repo and the sources the user names, and writes `requirement.md` for the user to sign. Design docs link to it and cite its rows by ID instead of restating them.
 - **Design docs: coach, then write up.** Go one section at a time. Ask a few pointed questions, push back (ask for the number, the failure scenario, the rejected alternative), and let the user decide. Then write the section up from their decisions. Don't write a section's substance before the user has given their take, unless they ask you to.
 - **Concept notes: Claude writes them**, with sources and check-your-understanding questions; the user annotates. Format and index: `concepts/README.md`.
 - **Code: kata style.** Claude writes the crate skeleton, types and failing tests, and leaves the core logic as `todo!()` for the user. Write the full implementation only when asked.
