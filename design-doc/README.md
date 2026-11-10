@@ -13,6 +13,8 @@ design-doc/url-shortener/
 
 Start one in Claude Code with `/scope-problem <system>`. It creates the folder, interviews you, and writes `requirement.md` to this [spec](../.claude/skills/scope-problem/requirement-spec.md), and adds the system to the [index](../README.md#designs). Then `/new-design <system>` creates the design doc from the [template](../.claude/skills/new-design/template.md).
 
+A third file, `investigation.md`, sits beside `scoping.md` only when the requirements were drafted from an existing system's code.
+
 A problem that splits into several pieces gets one folder per piece, named `<slug>-<piece>`. Each piece's `requirement.md` names its parent on a `Parent:` line.
 
 ## Drawing in Excalidraw

@@ -10,12 +10,14 @@ The system to design is in the skill's arguments (the `ARGUMENTS:` line) or the 
 
 ## 1. Set up the doc
 
-1. Choose the slug: kebab-case, no numbers (`URL Shortener` → `url-shortener`). Check it with the user if it isn't obvious.
+1. Choose the slug: kebab-case, no number prefix (`URL Shortener` → `url-shortener`). Check it with the user if it isn't obvious.
 2. Read `design-doc/<slug>/requirement.md` if it exists. `/scope-problem` writes it, to [this spec](../scope-problem/requirement-spec.md). Go by its header lines:
-   - `Status: signed-off` and `Route: design`: the requirements are settled. Don't ask for them again.
-   - `Route: decomposed`: the designs belong to the pieces. List the piece slugs from the Decomposition table in `scoping.md` and ask which one to start.
-   - `Route: code` or `no code`: this piece needs no design doc. Point the user to its handoff instead.
-   - `Status: draft`, `Status: closed`, or no file: suggest `/scope-problem <slug>` first. If the user wants to go ahead anyway, do, and say that the requirements are informal.
+   - No file, or `Status: draft`: suggest `/scope-problem <slug>` first; it picks a draft up where it stopped. If the user wants to go ahead anyway, do, and say that the requirements are informal.
+   - `Status: closed`: scoping ended on the early exit, and the Status line names where the work went. Point the user there. If they want a design doc anyway, go ahead, and say that the requirements are informal.
+   - `Status: signed-off`: go by the `Route:` line.
+     - `design`: the requirements are settled. Don't ask for them again.
+     - `decomposed`: the designs belong to the pieces. List the piece slugs from the Decomposition table in `scoping.md` and ask which one to start.
+     - `code` or `no code`: this piece needs no design doc. Point the user to its handoff in the Decomposition table instead.
 3. If `design-doc/<slug>/README.md` exists, don't overwrite it. Read it, summarize where it stands, and resume at the first unfinished section.
 4. Otherwise:
    - Create `design-doc/<slug>/README.md` from [template.md](template.md). Fill in the system name and today's date (`date +%m/%d/%y`).

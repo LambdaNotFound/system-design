@@ -5,7 +5,7 @@
 - Layout: header lines and section order
 - Sections: what each of the four sections holds
 - Rules: wording, citations, labels, conflicts, and IDs
-- Scoping record: the working-state files beside the doc
+- Scoping record: its template, progress lines and sections
 
 The requirement doc, `design-doc/<slug>/requirement.md`, is what downstream work builds on. `/scope-problem` writes it, and `/new-design`, `/review-design` and `/implement-design` read it where it is. A signed-off doc that meets this spec can be treated as the user's own words. It is a quality bar, not a gate: a skill handed a draft, an informal doc, or no doc at all should still run, say so, and name the gaps rather than guess past them.
 
@@ -30,9 +30,9 @@ Scoping record: design-doc/<slug>/scoping.md
 Header lines are plain `Key: value` text with no bold, so a resume can match them exactly.
 
 - `Status:` reads `draft` while scoping moves, `signed-off <MM/DD/YY>` once the user approves, or `closed, routed to <next step> without full scoping` on the early exit. A downstream skill should not start on a draft; handed one, it runs anyway and says so.
-- `Route:` is `design`, `code`, `no code`, or `decomposed` for a parent whose pieces carry their own routes. It reads `undecided` until decomposition.
+- `Route:` is `design`, `code`, `no code`, or `decomposed` for a parent whose pieces carry their own routes. It reads `undecided` until decomposition, or until the early exit sets it.
 - A piece doc, `design-doc/<slug>-<piece>/requirement.md`, has the piece slug on its `Slug:` line and adds `Parent: <parent slug>` and `Depends on: <piece slugs and external blockers, or none>`. Its `Scoping record:` points at the parent's record.
-- After sign-off the doc changes only through dated `## Amendment` sections, appended on the user's explicit instruction.
+- Until sign-off, `/scope-problem` alone writes the doc. After sign-off the signed text is never edited. The doc changes only through dated `## Amendment` sections appended below it, on the user's explicit instruction, by whichever skill the user is working in.
 
 ## Sections
 
@@ -57,6 +57,87 @@ Header lines are plain `Key: value` text with no bold, so a resume can match the
 
 ## Scoping record
 
-`scoping.md`, beside the requirement doc, holds scoping's working state: the `Mode:`, `Origin:` and `Grounded:` header lines, then `## Questions asked` (each question, its answer, the date), `## Coverage`, `## Evidence` (a `| Claim | Source | Label |` table), `## Open questions` (each with an owner and a default), `## Decomposition`, `## Reader test` (the phase 5 result, then the `Final check:` line), `## Conflicts` (a `| # | Between | Clash | Options | Decision | Date |` table, or `None found <date>`), and `## Humanizer`. `/scope-problem` alone writes it, as it alone writes the requirement doc. Downstream skills may read it for context and open questions; nothing in it binds them. Requirements bind only from the doc.
+`scoping.md`, beside the requirement doc, holds scoping's working state. `/scope-problem` alone writes it. Downstream skills may read it for context and open questions; nothing in it binds them. Requirements bind only from the doc.
 
-When an artifact investigation ran, a third file sits beside them: `investigation.md`, with its draft requirement doc, evidence, and open questions, one dated section per run. The investigating agent alone writes that file, and `/scope-problem` folds what holds into the doc and the record.
+Create it from this template. Keep the section headings and the table columns exactly as they are here.
+
+```markdown
+# Scoping record: <title>
+
+Mode: interview
+Origin: scope-problem <MM/DD/YY>
+
+## Questions asked
+
+| # | Date | Question | Answer |
+| --- | --- | --- | --- |
+| F1 | 11/09/26 | What are we trying to change or build? | A rate limiter in front of the public API. |
+| 2.3 | 11/09/26 | Is the gap the retry count, or that nobody is told after the third? Default: the second. | 3: yes |
+
+## Coverage
+
+| Row | State | Where it landed |
+| --- | --- | --- |
+| Scale | settled | NFR1 |
+| Operations | collapsed: single process, no external callers | |
+
+## Evidence
+
+| Claim | Source | Label |
+| --- | --- | --- |
+| The scheduler retries three times. | `scheduler.rs:141` | observed |
+
+## Open questions
+
+| Question | Owner | Default |
+| --- | --- | --- |
+
+## Decomposition
+
+| Piece slug | Serves (parent IDs, mapped to piece IDs) | Route | Depends on | Handoff |
+| --- | --- | --- | --- | --- |
+
+## Reader test
+
+## Conflicts
+
+| # | Between | Clash | Options | Decision | Date |
+| --- | --- | --- | --- | --- | --- |
+
+## Humanizer
+```
+
+The rows shown are examples of the format; a new record starts with empty tables. Question numbers are `F1` to `F5` for the frame and `<round>.<number>` after that.
+
+### Header lines
+
+`Mode:` is `interview` or `freeform`. `Origin:` is `scope-problem <date>`, or `investigation <date>` when the record was created from an investigator's draft.
+
+Below those two go the **progress lines**. Each one is added when its phase finishes, in this order, and a resume starts at the first one missing:
+
+| Line | Added when |
+| --- | --- |
+| `Frame: <date>` | Phase 1 is done: the restatement is confirmed and both files exist. |
+| `Grounded: <date>` | Phase 2 is done, even if there was nothing to read. |
+| `Exit check: <date>, <not offered, declined or taken>` | The early exit was considered. |
+| `Covered: <date>` | Every coverage row has a state. |
+| `Decomposed: <date>` | The Decomposition table is confirmed and any piece docs are written. |
+| `Reader test: <date>` | The phase 5 read is done and its wording fixes are in. |
+| `Swept: <date>` | The phase 6 conflict sweep found nothing left undecided. |
+| `Humanized: <date>` | The tighten and humanize passes are done. |
+| `Final check: <date>` | The final read is done, or was skipped because nothing changed. |
+
+When work goes back to an earlier phase and the doc changes, that phase's line and every line after it are deleted, so the later checks run again.
+
+### Sections
+
+- **Questions asked:** every question and its answer, logged as soon as it is answered, the frame questions included.
+- **Coverage:** one row per line of the coverage list, with its state: `settled`, `defaulted`, `assumed`, or `collapsed` with the reason.
+- **Evidence:** one row per claim, written as it is read. The label is `observed`, `inferred` or `assumed`.
+- **Open questions:** each with an owner and a default.
+- **Decomposition:** one row per piece. Handoff is the command, the concept note's path, or `doc only`.
+- **Reader test:** a dated entry for the phase 5 read (what the reader got right, what it missed, what was fixed), then one for each final check.
+- **Conflicts:** every conflict put to the user, in the interview or in the sweep, numbered `C1` onward, with their decision.
+- **Humanizer:** the date, the sections changed, and the lines kept original.
+
+When an artifact investigation ran, a third file sits beside the doc and the record: `investigation.md`, with its draft requirement doc, evidence, and open questions, one dated section per run. The investigating agent alone writes that file, and `/scope-problem` folds what holds into the doc and the record.

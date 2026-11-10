@@ -11,8 +11,13 @@ The system or concept is in the skill's arguments or the conversation.
 ## 0. Check first
 
 - Run `cargo --version`. If Rust isn't installed, stop and tell the user to install it with rustup (https://rustup.rs). Don't write Cargo files you can't build.
-- Read `design-doc/<slug>/requirement.md` if it exists (`/scope-problem` writes it). A piece with `Route: code` has no design doc: its signed-off requirement doc is the basis, and so is the three-line doc of a `Status: closed` early exit.
-- Otherwise the design doc (`design-doc/<slug>/README.md`) or concept note (`concepts/<slug>.md`) should be at least through its high-level design. If it isn't, suggest finishing it first.
+- Read `design-doc/<slug>/requirement.md` if it exists (`/scope-problem` writes it), and go by its `Route:` line:
+  - `code`: the piece has no design doc, and the requirement doc is the basis. That holds for a signed-off doc and for the three-line doc of a `Status: closed` early exit.
+  - `design`: build from the design doc, as below.
+  - `decomposed`: the code belongs to the pieces. List the piece slugs from the Decomposition table in `scoping.md` and ask which one to build.
+  - `no code`: there is nothing to build. Point the user to the piece's handoff instead.
+  - `Status: draft`, whatever the route: suggest finishing `/scope-problem <slug>` first. If the user wants to go ahead anyway, do, and say that the requirements are informal.
+- Without a requirement doc, or on the `design` route, the design doc (`design-doc/<slug>/README.md`) or concept note (`concepts/<slug>.md`) should be at least through its high-level design. If it isn't, suggest finishing it first.
 
 ## 1. Agree on the scope
 
@@ -41,7 +46,7 @@ Then, from `src/`, run `cargo new --lib <slug>`. Check that `<slug>` was added t
 
 ## 3. Scaffold, kata style
 
-- Public types and signatures that use the design doc's vocabulary. Doc comments state each contract and point to the doc section (`/// See design-doc/<slug>/README.md §6.`).
+- Public types and signatures that use the design doc's vocabulary. Doc comments state each contract and point to the doc section (`/// See design-doc/<slug>/README.md §6.`), or to the requirement row when the piece has no design doc (`/// See design-doc/<slug>/requirement.md, FR2.`).
 - The core logic is `todo!("hint")`. The hint names the key idea without giving the solution away.
 - Tests pin down the behavior the doc promises, including the edge cases it calls out: boundaries, concurrency, failure handling. Where a test proves a row of the requirement doc, name the row in its doc comment (`/// Proves FR2.`). They must compile, and fail only at the `todo!()`s.
 - Std only by default. Add a dependency only when the mechanism needs it (e.g. `tokio` for async I/O), and say why.

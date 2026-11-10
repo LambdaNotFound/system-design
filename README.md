@@ -9,7 +9,7 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 
 _None yet. Start one in Claude Code with `/scope-problem <system>`._
 
-**Status:** Scoping → Scoped (requirements signed off) → Drafting → Reviewed (no blocking review findings left) → Implemented (core mechanism built and tested)
+**Status:** Scoping → Scoped (requirements settled) → Drafting → Reviewed (no blocking review findings left) → Implemented (core mechanism built and tested)
 
 Building blocks and theory live in **[concepts/](concepts/)**.
 
