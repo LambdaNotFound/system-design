@@ -15,7 +15,7 @@ scripts/eval-skills --case 'resumes-*' --model sonnet --max-cost 3
 
 `check-skills` runs on its own in the pre-commit hook whenever a commit touches a skill, a case or these scripts. An error blocks the commit; a warning doesn't.
 
-`eval-skills` makes real, billed model runs on your account through `claude plugin eval`. It prints what each target cost, and `--max-cost` sets a ceiling. It needs Claude Code 2.1.269 or later and git 2.31 or later; if the git first on your PATH is older, the script looks for a newer one in the usual places. Reports land in `evals/results/` beside the cases and are not committed.
+`eval-skills` makes real, billed model runs on your account through `claude plugin eval`. It prints what each target cost, and `--max-cost` sets a ceiling. On Fable 5.2 in November 2026, a quick pass cost $2.90 for the four `/scope-problem` cases and $1.33 for the three routing cases. It needs Claude Code 2.1.269 or later and git 2.31 or later; if the git first on your PATH is older, the script looks for a newer one in the usual places. Reports land in `evals/results/` beside the cases and are not committed.
 
 ## The flow
 
@@ -100,5 +100,5 @@ To add a case, copy the nearest existing one and change the prompt, the stage an
 - **A run sees only the fixture.** It starts in a temporary folder holding what `place-files.sh` copied, not this repo. Anything the skill reads (`README.md`, `CLAUDE.md`) has to be in the stage.
 - **The runner picks its own model.** It doesn't read your Claude Code settings, so `eval-skills` passes your default model for it.
 - **`/skill-name` prompts don't count as a Skill call.** A prompt that starts with the slash command loads the skill directly. Use the `tool_used: Skill` grader only in routing cases, where the prompt is plain language.
-- **Routing needs the wrapper.** The runner takes one skill folder at a time, so `routing/` exists to load all of them together. In its runs the skills are named `system-design-skills:<skill>`.
+- **Routing needs the wrapper.** The runner takes one skill folder at a time, so `routing/` exists to load all of them together. In its runs the skills are named `system-design-skills:<skill>`. Through the wrapper's link the runner can also see every skill's own cases, so `eval-skills` runs the routing target with `--tag trigger`: a routing case must carry that tag, and a skill's own case must not.
 - **The judge is a small model voting three times.** A statement that needs judgment can flip between runs. Prefer statements with a plain yes or no, and use `--full` when a result looks marginal.

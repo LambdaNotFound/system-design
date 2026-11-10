@@ -225,7 +225,12 @@ def main():
     if unknown:
         sys.exit(f"check-skills: no such skill: {', '.join(sorted(unknown))}")
 
-    routing_tags = [check_case(case) for case in case_dirs(ROUTING)]
+    routing_tags = []
+    for case in case_dirs(ROUTING):
+        tags = check_case(case)
+        routing_tags.append(tags)
+        if "trigger" not in tags:
+            error(rel(case), "a routing case needs the tag 'trigger', or eval-skills will not run it")
     cases = len(routing_tags)
     checked = 0
     for skill_dir in skill_dirs:
@@ -234,6 +239,10 @@ def main():
         checked += 1
         check_skill_file(skill_dir)
         own_tags = [check_case(case) for case in case_dirs(skill_dir / "evals")]
+        for case, tags in zip(case_dirs(skill_dir / "evals"), own_tags):
+            if "trigger" in tags:
+                error(rel(case), "the tag 'trigger' is for routing cases in evals/routing/; "
+                                 "here it would make the case run twice")
         cases += len(own_tags)
         check_coverage(skill_dir.name, own_tags, routing_tags)
         run_skill_lint(skill_dir)

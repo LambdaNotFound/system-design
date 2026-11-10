@@ -139,6 +139,10 @@ def main():
                        "--json", json_path]
             command += ["--runs", "3", "--ablation", "with-without"] if args.full \
                 else ["--runs", "1", "--ablation", "none"]
+            if name == "routing":
+                # The wrapper links to every skill, so the runner would also find each
+                # skill's own cases there and run them a second time.
+                command += ["--tag", "trigger"]
             if model:
                 command += ["--model", model]
             if args.case:
