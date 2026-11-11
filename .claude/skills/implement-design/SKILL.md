@@ -13,15 +13,16 @@ The system or concept is in the skill's arguments or the conversation.
 - Run `cargo --version`. If Rust isn't installed, stop and tell the user to install it with rustup (https://rustup.rs). Don't write Cargo files you can't build.
 - Read `design-doc/<slug>/requirement.md` if it exists (`/scope-problem` writes it), and go by its `Route:` line:
   - `code`: the piece has no design doc, and the requirement doc is the basis. That holds for a signed-off doc and for the three-line doc of a `Status: closed` early exit.
-  - `design`: build from the design doc, as below.
+  - `design`: build from the RFC that `/new-design` wrote, as below.
   - `decomposed`: the code belongs to the pieces. List the piece slugs from the Decomposition table in `scoping.md` and ask which one to build.
   - `no code`: there is nothing to build. Point the user to the piece's handoff instead.
   - `Status: draft`, whatever the route: suggest finishing `/scope-problem <slug>` first. If the user wants to go ahead anyway, do, and say that the requirements are informal.
-- Without a requirement doc, or on the `design` route, the design doc (`design-doc/<slug>/README.md`) or concept note (`concepts/<slug>.md`) should be at least through its high-level design. If it isn't, suggest finishing it first.
+- On the `design` route, read `design-doc/<slug>/rfc.md`, the exported RFC. If it doesn't exist, the design loop hasn't closed: suggest `/new-design <slug>` first. Never edit `design.md`, `review.md` or `rfc.md`; they belong to the design loop.
+- For a concept, the note (`concepts/<slug>.md`) should be at least through How it works. If it isn't, suggest finishing it first.
 
 ## 1. Agree on the scope
 
-Don't build the whole system. Propose the one to three mechanisms where the interesting logic lives, for example:
+Don't build the whole system. Propose the one to three mechanisms where the interesting logic lives, taken from the RFC's Work Breakdown when there is one, for example:
 
 - URL shortener: short-code allocation and collision handling
 - Rate limiter: token bucket and sliding-window log
@@ -46,7 +47,7 @@ Then, from `src/`, run `cargo new --lib <slug>`. Check that `<slug>` was added t
 
 ## 3. Scaffold, kata style
 
-- Public types and signatures that use the design doc's vocabulary. Doc comments state each contract and point to the doc section (`/// See design-doc/<slug>/README.md §6.`), or to the requirement row when the piece has no design doc (`/// See design-doc/<slug>/requirement.md, FR2.`).
+- Public types and signatures that use the design doc's vocabulary. Doc comments state each contract and point to the RFC section by name (`/// See design-doc/<slug>/rfc.md, Retry Scheduler.`), or to the requirement row when the piece has no design doc (`/// See design-doc/<slug>/requirement.md, FR2.`).
 - The core logic is `todo!("hint")`. The hint names the key idea without giving the solution away.
 - Tests pin down the behavior the doc promises, including the edge cases it calls out: boundaries, concurrency, failure handling. Where a test proves a row of the requirement doc, name the row in its doc comment (`/// Proves FR2.`). They must compile, and fail only at the `todo!()`s.
 - Std only by default. Add a dependency only when the mechanism needs it (e.g. `tokio` for async I/O), and say why.
@@ -54,12 +55,12 @@ Then, from `src/`, run `cargo new --lib <slug>`. Check that `<slug>` was added t
 
 ## 4. Link it up
 
-- Design: in the doc header, set `**Code:** [src/<slug>](../../src/<slug>/)`, and fill in the Code column of the root README's Designs table.
+- Design: fill in the Code column of the root README's Designs table.
 - Concept: add a `**Code:** [src/<slug>](../src/<slug>/)` line under the note's title.
 - A `code` piece with no design doc: fill in the Code column of its row in the root README's Designs table.
 
 ## 5. Review the user's implementation
 
-When the user says they're done, run the tests, then review like a design reviewer. Does the code keep the doc's invariants? What breaks under concurrency or at the boundaries? Which test is missing? Ask before rewriting anything. Once the tests pass and the review is settled, set the status to **Implemented** in the design doc's header, when there is one, and in the README.
+When the user says they're done, run the tests, then review like a design reviewer. Does the code keep the doc's invariants? What breaks under concurrency or at the boundaries? Which test is missing? Ask before rewriting anything. Once the tests pass and the review is settled, set the status to **Implemented** in the root README's Designs table.
 
 If the user asks for the solution, write the full implementation, with comments on the non-obvious choices.

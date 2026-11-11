@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# Copies the fixture this case starts from into the run's working folder.
+# Fixture stage for this case (see evals/fixtures/place.sh).
 set -eu
-exec "$(dirname "$0")/../../../../evals/fixtures/place.sh"
+exec "$(dirname "$0")/../../../../evals/fixtures/place.sh" scoped

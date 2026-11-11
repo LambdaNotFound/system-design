@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: announces-plan-before-dispatch
+expected_outcome: |
+  From a signed-off requirement doc and no design yet, the skill says what it is about to run
+  (an RFC, its word budget, how many subagent runs it can cost), asks whether to commit after
+  each round, and waits. It dispatches nothing and writes nothing before the answer.
+context:
+  scaffold_script: place-files.sh

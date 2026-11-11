@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: focused-review-appends-to-ledger
+expected_outcome: |
+  On a closed design, the skill dispatches one fresh bar-raiser with the user's focus. The
+  bar-raiser appends a `## Review 1` section to review.md, and the skill reports its verdict
+  and objections. Nothing else in the folder changes.
+context:
+  scaffold_script: place-files.sh

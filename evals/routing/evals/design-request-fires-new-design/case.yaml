@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: design-request-fires-new-design
 expected_outcome: |
-  A request to design a system, section by section with pushback, goes to new-design.
+  A request to write the design for a scoped system, as an RFC, goes to new-design.
 context:
   scaffold_script: place-files.sh

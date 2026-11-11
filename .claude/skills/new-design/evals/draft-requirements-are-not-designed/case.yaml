@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: draft-requirements-are-not-designed
+expected_outcome: |
+  The requirement doc is still `Status: draft`. The skill says scoping is unfinished, offers
+  /scope-problem, and stops. It does not start the loop on a draft without the user's word.
+context:
+  scaffold_script: place-files.sh

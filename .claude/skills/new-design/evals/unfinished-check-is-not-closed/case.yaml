@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: unfinished-check-is-not-closed
+expected_outcome: |
+  The loop was approved and the editorial pass adopted, but review.md ends with an
+  `## Editorial check 1` section that has no `Verdict:` line. The skill resumes into that
+  unfinished check and does not treat the loop as closed.
+  Regression: the unfinished-section rule used to sit after the resume states, so this fell
+  through to the closed state.
+context:
+  scaffold_script: place-files.sh

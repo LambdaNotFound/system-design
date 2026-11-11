@@ -45,7 +45,10 @@ evals/
 │   ├── place.sh              copies a stage into a run's working folder
 │   ├── empty/                the bare repo: README.md, CLAUDE.md, no systems
 │   ├── mid-sweep/            scoping in progress, with one planted conflict
-│   └── scoped/               requirement.md signed off
+│   ├── scoped/               requirement.md signed off
+│   ├── loop-approved/        the design loop approved and adopted, rfc.md not yet exported
+│   ├── loop-editorial-check/ the same, with an editorial check left unfinished in review.md
+│   └── loop-closed/          rfc.md exported and the README row at Reviewed
 └── routing/                  a wrapper that loads every skill together
     ├── skills -> ../../.claude/skills
     └── evals/<case>/         which-skill-fires cases
@@ -54,7 +57,9 @@ evals/
 └── lint.py                   optional: the skill's own checks, run by check-skills
 ```
 
-The skills form a pipeline, so each skill's cases start from the stage before it: `/new-design` from `scoped/`, and later `/review-design` from a drafted stage and `/implement-design` from a reviewed one. Add a stage when the first case needs it. Every stage is laid over `empty/`, so it holds only what differs.
+The skills form a pipeline, so each skill's cases start from the stage before it: `/new-design` from `scoped/`, `/review-design` from `loop-closed/`, and later `/implement-design` from the same. Add a stage when the first case needs it. Every stage is laid over `empty/` and holds only what differs, so a case names its stages in order: `place.sh scoped loop-approved loop-closed`.
+
+`/new-design` and `/review-design` dispatch subagents, and a full design loop is far too expensive to run as a test. Their cases are written to end before the first dispatch: they check what the skill says and does on the way in, and which state it resumes into. The one exception is `/review-design`'s artifact case, which lists `Agent` in `allowed_tools` and runs a single bar-raiser.
 
 ## A case
 

@@ -5,4 +5,4 @@ timeout_seconds: 300
 allowed_tools: [Read, Glob, Grep, Skill]
 ---
 
-let's design a URL shortener. i want to go through it section by section and have you push back on my choices
+the rate limiter requirements are signed off. can you write the design for it now? i want a proper RFC

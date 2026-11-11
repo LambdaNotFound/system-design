@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: critique-request-fires-review-design
+expected_outcome: |
+  A request to critique an existing design, with an area of concern, goes to review-design.
+context:
+  scaffold_script: place-files.sh

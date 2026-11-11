@@ -53,7 +53,7 @@ Header lines are plain `Key: value` text with no bold, so a resume can match the
 - **No hidden conflicts.** Two rows that cannot both hold, or a row the code or a cited page contradicts, is put to the user and decided before sign-off, never resolved by the author alone. Every conflict in the scoping record carries the user's decision.
 - **No unowned questions.** Every open question in the scoping record has an owner and a default, or the doc is not signable.
 - **IDs are stable.** Never renumber a signed doc; a withdrawn requirement keeps its ID and is withdrawn by amendment. A piece doc numbers its own rows from 1, and the scoping record maps them to the parent's IDs.
-- **Design-ready wording.** The design doc links to this doc instead of repeating it, and its sections, review findings and tests cite rows by ID. Write each row so it reads correctly on its own.
+- **Design-ready wording.** The RFC that `/new-design` writes carries the FR and NFR rows verbatim, and its sections, review findings and tests cite rows by ID. Write each row so it reads correctly on its own.
 
 ## Scoping record
 

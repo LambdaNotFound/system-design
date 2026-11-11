@@ -1,6 +1,6 @@
 # Review rubric
 
-A map of what to look at, not a form to fill in. Skip what doesn't apply to this system.
+A map of what to look at, not a form to fill in. Skip what doesn't apply to this system. The bar-raiser reads it beside its six challenges, in `/new-design` rounds and in `/review-design` reviews.
 
 ## Requirements and scope
 - Non-functional requirements are quantified: latency percentiles, availability, durability, and the consistency each operation needs.

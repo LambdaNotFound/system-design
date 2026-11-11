@@ -9,7 +9,7 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 
 _None yet. Start one in Claude Code with `/scope-problem <system>`._
 
-**Status:** Scoping → Scoped (requirements settled) → Drafting → Reviewed (no blocking review findings left) → Implemented (core mechanism built and tested)
+**Status:** Scoping → Scoped (requirements settled) → Drafting (the design loop is running) → Reviewed (the bar-raiser approved, or you accepted what it left open) → Implemented (core mechanism built and tested)
 
 Building blocks and theory live in **[concepts/](concepts/)**.
 
@@ -17,9 +17,9 @@ Building blocks and theory live in **[concepts/](concepts/)**.
 
 ```
 .claude/skills/   Claude Code skills for the workflow below
-.githooks/        commit message hooks
+.githooks/        commit message hooks, and a pre-commit lint for the skills
 concepts/         notes on building blocks and theory, linked from the designs
-design-doc/       one folder per system: requirement.md, README.md (the doc) + diagrams/
+design-doc/       one folder per system: requirement.md, design.md, review.md, rfc.md + diagrams/
 evals/            tests for the skills: fixtures and routing cases (see evals/README.md)
 scripts/          check-skills lints the skills; eval-skills runs their eval cases
 src/              Rust workspace, one crate per system or concept
@@ -30,13 +30,13 @@ src/              Rust workspace, one crate per system or concept
 | Step | In Claude Code | What happens |
 |---|---|---|
 | Scope | `/scope-problem <system>` | Claude interviews you, then writes the requirement doc you sign off |
-| Design | `/new-design <system>` | Claude coaches you through each section, then writes it up |
-| Review | `/review-design <system>` | Staff-level critique, logged in the doc's Review log |
+| Design | `/new-design <system>` | An agent loop writes a formal RFC from the requirement doc: an investigator drafts, a bar-raiser challenges it in rounds, an auditor tightens the prose |
+| Review | `/review-design <system or path> [focus: …]` | On demand: a fresh bar-raiser critiques the design, or any design doc, with an optional focus area |
 | Build | `/implement-design <system>` | Rust skeleton and failing tests; you write the `todo!()`s |
 
 The skills have their own tests: `scripts/check-skills` lints them and `scripts/eval-skills` runs their eval cases. See [evals/](evals/).
 
-Architecture diagrams are drawn by hand in Excalidraw; sequence and flow diagrams are Mermaid inside the docs. See [design-doc/](design-doc/).
+Architecture diagrams are drawn by hand in Excalidraw, after the design is approved; sequence and flow diagrams are Mermaid inside the docs. See [design-doc/](design-doc/).
 
 ## Setup (once per clone)
 

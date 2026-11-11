@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: open-loop-is-not-reviewed
+expected_outcome: |
+  The design loop on rate-limiter has not closed: review.md ends with an editorial check that
+  has no verdict, and rfc.md does not exist. The skill says the loop is still open, points to
+  /new-design, and appends nothing to the ledger.
+context:
+  scaffold_script: place-files.sh

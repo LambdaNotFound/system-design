@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: no-design-points-to-new-design
+expected_outcome: |
+  The system is scoped but has no design.md yet. The skill says there is no design to review,
+  points to /new-design, and stops.
+context:
+  scaffold_script: place-files.sh
