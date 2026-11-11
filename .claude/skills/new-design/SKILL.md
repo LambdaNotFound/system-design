@@ -143,8 +143,8 @@ Once a round approves, an amendment the user makes gets a scoped edit, not a reo
 
 `<dir>` is the checkpoint; no conversation context is needed. Read every file in `<dir>` and announce the state you resumed into, so the user can correct it. Ask the commit question from Before round 0 before the session's first dispatch. Then take the first state that matches:
 
-1. The last section of `review.md` has no `Verdict:` line: it is unfinished. Dispatch the bar-raiser for that same round, check or review, and say the section is unfinished. This comes first because every state below reads verdicts.
-2. A `design.pre-V<k>.md` snapshot exists: a `/review-design` fix is in flight. Point the user to `/review-design <slug>`, which finishes it, and stop.
+1. `/review-design` owns the open work: the last section of `review.md` is a `## Review <k>` or `## Review <k> check <p>` with no `Verdict:` line, or a `design.pre-V<k>.md` snapshot exists. Point the user to `/review-design <slug>`, which finishes it, and stop. Never dispatch a review or a review-fix check from here: those prompts are `/review-design`'s.
+2. The last section of `review.md` is a loop section (`## Round <N>`, `## Editorial check <k>` or `## Amendment A<n> check <p>`) with no `Verdict:` line: it is unfinished. Dispatch the bar-raiser for that same round or check, and say the section is unfinished. This comes before the states below because they read verdicts.
 3. No `design.md`, or no `R0:` entry in its revision log: round 0 is pending. Dispatch the investigator with `round 0`.
 4. The loop waits for the user (the table above) and `loop.md` has no decision line for this occurrence: put it to them. With a decision line, do what its column says, and read the states below with the verdict counted as that line makes it count.
 5. The last `## Round N` verdict is `revise` or `reject-approach`, and the revision log has no `R<N>:` entry: dispatch the investigator with `respond to round N`.

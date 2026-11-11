@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-The `## Review 1` section was written by a dispatched subagent, not by the main agent editing review.md itself.
+The main agent dispatched a subagent: the trace has an Agent or Task tool call whose prompt names the bar-raiser role.

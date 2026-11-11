@@ -67,7 +67,7 @@ The files are the checkpoint; no conversation context is needed. Read this file 
 | `Final check:` | Phase 6, step 4. |
 | None | Phase 6, step 5. |
 
-Announce which state you resumed into, so the user can correct it.
+Open your first message after reading the files with the state you resumed into, by phase and step and by name (for example "Resuming at phase 6, step 1: the conflict sweep."), so the user can correct it. "This is a resume" is not enough: the user can only correct a state you name.
 
 ## How this runs: as an interview
 

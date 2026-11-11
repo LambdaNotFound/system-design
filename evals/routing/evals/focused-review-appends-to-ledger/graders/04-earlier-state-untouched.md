@@ -1,7 +1,9 @@
 ---
 type: llm
-focus: trace
+focus:
+  source: file
+  path: design-doc/rate-limiter/review.md
 weight: 1
 ---
 
-The `## Round 1` and `## Round 2` sections of review.md are unchanged, and design.md and rfc.md were not edited.
+The file still has a `## Round 1` section ending `Verdict: revise` and a `## Round 2` section ending `Verdict: approve`, and the `## Review 1` section comes after both.

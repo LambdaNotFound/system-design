@@ -1,6 +1,8 @@
 ---
 type: llm
-focus: trace
+focus:
+  source: file
+  path: design-doc/rate-limiter/review.md
 weight: 1
 ---
 

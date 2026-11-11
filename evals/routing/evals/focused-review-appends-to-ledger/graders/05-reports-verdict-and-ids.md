@@ -1,7 +1,7 @@
 ---
 type: llm
-focus: trace
+focus: last_message
 weight: 1
 ---
 
-The response reports the review's verdict, and lists its objections by their `V1-` IDs or says there were none.
+The message reports the review's verdict, and lists its objections by their `V1-` IDs or says there were none.

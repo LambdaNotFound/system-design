@@ -1,7 +1,9 @@
 ---
 type: llm
-focus: trace
+focus:
+  source: file
+  path: design-doc/rate-limiter/requirement.md
 weight: 1
 ---
 
-The Problem Statement in that requirement.md ends with an `Out of scope:` line that excludes usage billing and internal service-to-service traffic.
+The Problem Statement ends with an `Out of scope:` line that excludes usage billing and internal service-to-service traffic.

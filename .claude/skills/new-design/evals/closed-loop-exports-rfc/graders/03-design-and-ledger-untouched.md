@@ -1,7 +1,9 @@
 ---
 type: llm
-focus: trace
+focus:
+  source: file
+  path: design-doc/rate-limiter/review.md
 weight: 1
 ---
 
-design.md and review.md were not edited.
+The file's last section is `## Round 2`, and that section's last line is `Verdict: approve`.

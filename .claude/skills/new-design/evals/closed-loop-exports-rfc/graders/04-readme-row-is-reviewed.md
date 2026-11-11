@@ -1,7 +1,9 @@
 ---
 type: llm
-focus: trace
+focus:
+  source: file
+  path: README.md
 weight: 1
 ---
 
-In README.md, the Rate Limiter row reads `Reviewed` and its link points at design-doc/rate-limiter/rfc.md.
+The Rate Limiter row in the Designs table reads `Reviewed`, and its link points at design-doc/rate-limiter/rfc.md.

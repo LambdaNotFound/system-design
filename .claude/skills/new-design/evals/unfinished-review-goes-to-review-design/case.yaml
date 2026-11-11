@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: unfinished-review-goes-to-review-design
+expected_outcome: |
+  The design loop is closed, but review.md ends with an on-demand `## Review 1` from
+  /review-design that has no verdict. The skill hands it back to /review-design and dispatches
+  nothing.
+  Regression: /new-design used to re-dispatch any unfinished section as a loop round, and
+  /review-design read the same section as an open loop, so each sent the user to the other.
+context:
+  scaffold_script: place-files.sh

@@ -26,6 +26,7 @@ CONTENTS_AFTER_LINES = 100  # longer supporting files need a contents list
 MIN_CASES = 3
 KINDS = ["trigger", "first-turn", "mid-state", "artifact"]
 RESERVED = {"results", "mocks", "files", "node_modules"}
+FOCUS_VALUES = {"trace", "last_message", "files", "mock_calls"}
 CASE_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
 SKILL_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
@@ -172,6 +173,12 @@ def check_case(case_dir):
             error(rel(grader), "no settings block with a 'type:' line; the runner ignores this file")
         elif grader_fields["type"] == "llm" and not statement.strip():
             error(rel(grader), "the statement to check is empty")
+        if grader_fields and "focus" in grader_fields:
+            focus = grader_fields["focus"]
+            if focus not in FOCUS_VALUES and not re.fullmatch(r"source: file path: \S+", focus):
+                error(rel(grader), f"focus '{focus}' is not one the runner accepts: "
+                                   f"{', '.join(sorted(FOCUS_VALUES))}, or a file as "
+                                   "'focus:' with 'source: file' and 'path: <path>' on indented lines")
 
     case_yaml = case_dir / "case.yaml"
     if case_yaml.exists():

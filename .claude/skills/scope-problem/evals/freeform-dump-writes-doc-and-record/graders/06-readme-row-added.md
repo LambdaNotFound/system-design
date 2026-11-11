@@ -1,7 +1,9 @@
 ---
 type: llm
-focus: trace
+focus:
+  source: file
+  path: README.md
 weight: 1
 ---
 
-The Designs table in README.md gained a row for the rate limiter with the status `Scoping`, and the 'None yet' line was removed.
+The Designs table has a row for the rate limiter with the status `Scoping`, and there is no 'None yet' line.
