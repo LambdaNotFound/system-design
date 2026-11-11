@@ -194,7 +194,7 @@ def check_case(case_dir):
 def check_coverage(skill, own_tags, routing_tags):
     """Warn about the minimum set of cases a skill is meant to have."""
     kinds = {tag for tags in own_tags for tag in tags}
-    kinds |= {"trigger" for tags in routing_tags if skill in tags and "trigger" in tags}
+    kinds |= {tag for tags in routing_tags if skill in tags for tag in tags if tag in KINDS}
     total = len(own_tags) + sum(1 for tags in routing_tags if skill in tags)
     missing = [kind for kind in KINDS if kind not in kinds]
     if total == 0:
@@ -229,8 +229,11 @@ def main():
     for case in case_dirs(ROUTING):
         tags = check_case(case)
         routing_tags.append(tags)
-        if "trigger" not in tags:
-            error(rel(case), "a routing case needs the tag 'trigger', or eval-skills will not run it")
+        if "trigger" not in tags and "cross-skill" not in tags:
+            error(rel(case), "a case in evals/routing/ needs the tag 'trigger' or 'cross-skill', "
+                             "or eval-skills will not run it")
+        if "trigger" in tags and "cross-skill" in tags:
+            error(rel(case), "'trigger' and 'cross-skill' together would make the case run twice")
     cases = len(routing_tags)
     checked = 0
     for skill_dir in skill_dirs:
@@ -240,9 +243,9 @@ def main():
         check_skill_file(skill_dir)
         own_tags = [check_case(case) for case in case_dirs(skill_dir / "evals")]
         for case, tags in zip(case_dirs(skill_dir / "evals"), own_tags):
-            if "trigger" in tags:
-                error(rel(case), "the tag 'trigger' is for routing cases in evals/routing/; "
-                                 "here it would make the case run twice")
+            if "trigger" in tags or "cross-skill" in tags:
+                error(rel(case), "the tags 'trigger' and 'cross-skill' are for cases in evals/routing/; "
+                                 "here they would make the case run twice")
         cases += len(own_tags)
         check_coverage(skill_dir.name, own_tags, routing_tags)
         run_skill_lint(skill_dir)

@@ -4,6 +4,7 @@
     scripts/eval-skills                     every target, quick
     scripts/eval-skills scope-problem       one skill's cases
     scripts/eval-skills routing             the which-skill-fires cases
+    scripts/eval-skills cross-skill         cases that need every skill folder loaded
     scripts/eval-skills scope-problem --full
     scripts/eval-skills --case 'resumes-*' --model sonnet --max-cost 3
 
@@ -24,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = ROOT / ".claude" / "skills"
 ROUTING = ROOT / "evals" / "routing"
+WRAPPER_TAGS = {"routing": "trigger", "cross-skill": "cross-skill"}   # target -> case tag
 MIN_GIT = (2, 31)   # the runner needs it to switch off the repo's git hooks during a run
 
 
@@ -33,9 +35,18 @@ def targets():
     for skill_dir in sorted(SKILLS.iterdir()):
         if (skill_dir / "SKILL.md").exists() and any((skill_dir / "evals").glob("*/prompt.md")):
             found[skill_dir.name] = skill_dir
-    if any((ROUTING / "evals").glob("*/prompt.md")):
-        found["routing"] = ROUTING
+    # The wrapper in evals/routing/ loads every skill together. It runs twice, by tag:
+    # "routing" for the which-skill-fires cases, "cross-skill" for cases whose skill
+    # reads another skill's files (a single-skill run's sandbox cannot reach them).
+    for name, tag in WRAPPER_TAGS.items():
+        if any(tag in wrapper_case_tags(prompt) for prompt in (ROUTING / "evals").glob("*/prompt.md")):
+            found[name] = ROUTING
     return found
+
+
+def wrapper_case_tags(prompt_file):
+    match = re.search(r"^tags:\s*\[(.*?)\]", prompt_file.read_text(encoding="utf-8"), re.M)
+    return [tag.strip() for tag in match.group(1).split(",")] if match else []
 
 
 def git_version(git):
@@ -139,10 +150,14 @@ def main():
                        "--json", json_path]
             command += ["--runs", "3", "--ablation", "with-without"] if args.full \
                 else ["--runs", "1", "--ablation", "none"]
-            if name == "routing":
+            if name in WRAPPER_TAGS:
                 # The wrapper links to every skill, so the runner would also find each
                 # skill's own cases there and run them a second time.
-                command += ["--tag", "trigger"]
+                command += ["--tag", WRAPPER_TAGS[name]]
+            if name == "routing":
+                # A routing case ends once the right skill has fired. Without this, a
+                # skill that dispatches a subagent goes on to do its real work.
+                command += ["--disallow-tools", "Agent", "Task"]
             if model:
                 command += ["--model", model]
             if args.case:

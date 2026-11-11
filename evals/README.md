@@ -8,6 +8,7 @@ Tests for the skills in `.claude/skills/`. They answer one question: does the sk
 scripts/check-skills                         # lint: free, about a second
 scripts/eval-skills scope-problem            # one skill's cases, one run each
 scripts/eval-skills routing                  # which skill fires
+scripts/eval-skills cross-skill              # cases that need every skill folder loaded
 scripts/eval-skills                          # everything
 scripts/eval-skills scope-problem --full     # three runs per case, plus a baseline without the skill
 scripts/eval-skills --case 'resumes-*' --model sonnet --max-cost 3
@@ -59,7 +60,7 @@ evals/
 
 The skills form a pipeline, so each skill's cases start from the stage before it: `/new-design` from `scoped/`, `/review-design` from `loop-closed/`, and later `/implement-design` from the same. Add a stage when the first case needs it. Every stage is laid over `empty/` and holds only what differs, so a case names its stages in order: `place.sh scoped loop-approved loop-closed`.
 
-`/new-design` and `/review-design` dispatch subagents, and a full design loop is far too expensive to run as a test. Their cases are written to end before the first dispatch: they check what the skill says and does on the way in, and which state it resumes into. The one exception is `/review-design`'s artifact case, which lists `Agent` in `allowed_tools` and runs a single bar-raiser.
+`/new-design` and `/review-design` dispatch subagents, and a full design loop is far too expensive to run as a test. Their cases are written to end before the first dispatch: they check what the skill says and does on the way in, and which state it resumes into. The one exception is `/review-design`'s artifact case, `focused-review-appends-to-ledger`, which runs a single bar-raiser. It lives in `routing/evals/` with the tag `cross-skill`, because the bar-raiser's role file is in `/new-design`'s folder.
 
 ## A case
 
@@ -105,5 +106,8 @@ To add a case, copy the nearest existing one and change the prompt, the stage an
 - **A run sees only the fixture.** It starts in a temporary folder holding what `place-files.sh` copied, not this repo. Anything the skill reads (`README.md`, `CLAUDE.md`) has to be in the stage.
 - **The runner picks its own model.** It doesn't read your Claude Code settings, so `eval-skills` passes your default model for it.
 - **`/skill-name` prompts don't count as a Skill call.** A prompt that starts with the slash command loads the skill directly. Use the `tool_used: Skill` grader only in routing cases, where the prompt is plain language.
-- **Routing needs the wrapper.** The runner takes one skill folder at a time, so `routing/` exists to load all of them together. In its runs the skills are named `system-design-skills:<skill>`. Through the wrapper's link the runner can also see every skill's own cases, so `eval-skills` runs the routing target with `--tag trigger`: a routing case must carry that tag, and a skill's own case must not.
+- **Routing needs the wrapper.** The runner takes one skill folder at a time, so `routing/` exists to load all of them together. In its runs the skills are named `system-design-skills:<skill>`. Through the wrapper's link the runner can also see every skill's own cases, so `eval-skills` runs the wrapper by tag: `--tag trigger` for the routing target and `--tag cross-skill` for the cross-skill one. A case in `routing/evals/` must carry exactly one of the two, and a skill's own case neither. A cross-skill case also carries its skill's name and its kind, so the lint counts it toward that skill.
+- **A single-skill run cannot read another skill's folder.** The sandbox denies it. A case whose skill reads a sibling's files (`/review-design` reads the bar-raiser role from `/new-design`) only works as a cross-skill case.
+- **Subagents are available whether or not a case lists them.** The runner's subagent tool is `Task`, and it is on by default. A routing case whose skill dispatches one would go on to do the real work and run into its timeout, so `eval-skills` runs the routing target with `--disallow-tools Agent Task`.
+- **The trace survives in the result file.** The runner deletes its temp folders, but `aggregate-result.json` keeps each run's trace as the `evidence` of its trace-focused graders. Read it there when a run times out.
 - **The judge is a small model voting three times.** A statement that needs judgment can flip between runs. Prefer statements with a plain yes or no, and use `--full` when a result looks marginal.
