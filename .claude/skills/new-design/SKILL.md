@@ -20,6 +20,7 @@ The system is in the skill's arguments (the `ARGUMENTS:` line) or the conversati
 
 Files that go with this skill. If one is missing, stop and tell the user where it should be:
 
+- `${CLAUDE_SKILL_DIR}/waiting.md`: what to do when the loop waits for the user. Read it when it does.
 - `${CLAUDE_SKILL_DIR}/roles/investigator.md`, `roles/bar-raiser.md` and `roles/auditor.md`: each role's instructions. The subagents read them; you don't need to.
 - `${CLAUDE_SKILL_DIR}/rfc-spec.md`: the RFC contract, with `rfc-exemplar.md` beside it.
 - `${CLAUDE_SKILL_DIR}/../scope-problem/requirement-spec.md`: the requirement doc contract.
@@ -117,18 +118,7 @@ Relay only slugs, round numbers, verdicts, and tasks. The substance travels thro
 
 ## When the loop waits for the user
 
-Four things stop the loop for a decision. Put the matter to the user in one message: the escalation paragraph, the finding, or the reason, with the options below. Then record their answer as one line in `loop.md`, so a resume knows it was given:
-
-`D<n> | <date> | <what it answers> | continue or accept or stop | <note>`
-
-| Waiting on | `continue` | `accept` |
-| --- | --- | --- |
-| `R0: not answerable` | Once the user has amended the requirement doc, dispatch `round 0` again. | Not offered. |
-| `Round <N> escalate` | The verdict counts as `revise`. Note `rounds through <N+2>`, then step 3. | The user approves over the bar-raiser: the verdict counts as `approve-with-risks`, the escalation paragraph travels as a residual risk, then step 4. |
-| `Editorial check <k>` not approved | Dispatch the investigator with `respond to editorial check <k>`, then the bar-raiser with `editorial check <k+1>`. | Close as it stands, and report the finding as a residual risk. |
-| `A<n>` or `V<k>` reopens the design | Delete that pass's snapshot, note `rounds through <N+2>`, and dispatch the bar-raiser with `review round <N+1>` and `Reopened by:`. | Not offered: the user withdraws the amendment with another one, or drops the fix. |
-
-`stop` ends the loop where it is. A design that was never approved is not exported. One decision line answers one occurrence: a second escalation needs its own line.
+Four things stop the loop for a decision: `R0: not answerable`, a round's `escalate`, an editorial check that is not approved, and an amendment or review fix that reopens the design. Read [waiting.md](waiting.md) now: it has what to put to the user, their options, and the `D<n>` line to record in `loop.md`.
 
 ## Amending after approval
 
@@ -146,7 +136,7 @@ Once a round approves, an amendment the user makes gets a scoped edit, not a reo
 1. `/review-design` owns the open work: the last section of `review.md` is a `## Review <k>` or `## Review <k> check <p>` with no `Verdict:` line, or a `design.pre-V<k>.md` snapshot exists. Point the user to `/review-design <slug>`, which finishes it, and stop. Never dispatch a review or a review-fix check from here: those prompts are `/review-design`'s.
 2. The last section of `review.md` is a loop section (`## Round <N>`, `## Editorial check <k>` or `## Amendment A<n> check <p>`) with no `Verdict:` line: it is unfinished. Dispatch the bar-raiser for that same round or check, and say the section is unfinished. This comes before the states below because they read verdicts.
 3. No `design.md`, or no `R0:` entry in its revision log: round 0 is pending. Dispatch the investigator with `round 0`.
-4. The loop waits for the user (the table above) and `loop.md` has no decision line for this occurrence: put it to them. With a decision line, do what its column says, and read the states below with the verdict counted as that line makes it count.
+4. The loop waits for the user ([waiting.md](waiting.md)) and `loop.md` has no decision line for this occurrence: put it to them. With a decision line, do what its column says, and read the states below with the verdict counted as that line makes it count.
 5. The last `## Round N` verdict is `revise` or `reject-approach`, and the revision log has no `R<N>:` entry: dispatch the investigator with `respond to round N`.
 6. Same verdict, and the `R<N>:` entry exists: dispatch the bar-raiser with `review round N+1`.
 7. The latest `(after approval)` amendment, `A<n>`, has no `A<n>.1:` entry: make its snapshot if it is missing, then dispatch the investigator with `amendment A<n> pass 1`.

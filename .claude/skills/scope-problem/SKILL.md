@@ -23,6 +23,7 @@ Read each one when its line says to:
 - [requirement-spec.md](requirement-spec.md): the layout and rules of the requirement doc and the scoping record, with the record's template. Read it before you create either file. If it is missing, stop and tell the user where it should be.
 - [interview.md](interview.md): how to run the phase 3 rounds, and the twelve things that must be settled before the doc is written. Read it at the start of phase 3.
 - [prompts.md](prompts.md): the subagent prompts and how to dispatch them. Read it before any dispatch.
+- [decompose.md](decompose.md): phase 4, the routes and the piece docs. Read it at the start of phase 4.
 - [sign-off.md](sign-off.md): phases 5 and 6 in full, and the prose voice. Read it at the start of phase 5.
 
 ## Files
@@ -140,22 +141,9 @@ When every coverage row has a state, add `Covered: <date>` to the record.
 
 ## Phase 4: Decompose
 
-Break the problem into independently deliverable pieces sized for their route. The routes and their handoffs are fixed in this repo:
+Read [decompose.md](decompose.md) now and follow it: the routes and their handoffs, how to size and order the pieces, and the piece docs to write. Confirm the pieces with the user before you write the Decomposition table; a piece without a slug, a route and a handoff is not decomposed yet.
 
-| Route | For | Handoff |
-| --- | --- | --- |
-| `design` | A piece that needs a reviewed design | `/new-design <piece slug>` |
-| `code` | A well-understood mechanism that needs no design doc of its own | `/implement-design <piece slug>` |
-| `no code` | A notes or process outcome | A concept note, `concepts/<piece slug>.md`, or `doc only` |
-
-The usual shape is one design piece. `/implement-design` later picks the mechanisms worth building out of the finished design, so do not split those out as code pieces here. Split into several design pieces only when parts can be designed and reviewed independently. Order by dependency and risk, riskiest first, so a failed assumption surfaces early.
-
-Confirm the pieces, routes and handoffs with the user: they are cheap to fix now and expensive after sign-off. Then write the record's Decomposition table. A piece without a slug, a route, and a handoff is not decomposed yet.
-
-- **One piece:** its slug is the bare `<slug>`. Set the doc's `Route:` to its route.
-- **Several pieces:** each piece is a sub-system in its own right, with the slug `<slug>-<piece>`. A piece slug must not match a slug already used in `design-doc/`, `concepts/` or `src/`. Set the parent doc's `Route:` to `decomposed`, and write each piece's doc now, `design-doc/<slug>-<piece>/requirement.md`, with the piece-doc header lines the spec defines and the rows it serves, numbered from 1. A piece doc stands alone: an agent downstream never opens the parent to understand its job. If the decomposition changes later, remove the docs of pieces that no longer exist.
-
-Add `Decomposed: <date>` to the record.
+When the table is confirmed and any piece docs are written, add `Decomposed: <date>` to the record.
 
 ## Phases 5 and 6: Test the doc, resolve conflicts, sign off
 
