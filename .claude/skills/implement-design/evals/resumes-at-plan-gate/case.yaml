@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: resumes-at-plan-gate
+expected_outcome: |
+  The map has run (impl.md holds a plan) and impl-run.md has no Plan approved line. The skill
+  resumes into the plan gate: it names that state, shows the plan in short, and waits for the
+  user's approval. It dispatches nothing and writes no code.
+context:
+  scaffold_script: place-files.sh

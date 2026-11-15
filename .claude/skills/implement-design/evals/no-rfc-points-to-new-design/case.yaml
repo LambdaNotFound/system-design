@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: no-rfc-points-to-new-design
+expected_outcome: |
+  The requirement doc is signed off and routed to design, but no rfc.md exists: the design loop
+  has not closed. The skill says so, points to /new-design, and stops. It builds nothing from the
+  requirement doc alone.
+context:
+  scaffold_script: place-files.sh

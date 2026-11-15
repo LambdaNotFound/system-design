@@ -10,11 +10,15 @@ design-doc/url-shortener/
 ├── review.md                         the review ledger: loop rounds and on-demand reviews
 ├── loop.md                           your decisions during the loop, when there were any
 ├── rfc.md                            the exported RFC: the one to read and share
-└── diagrams/
-    └── architecture.excalidraw.svg   drawn in Excalidraw
+├── diagrams/
+│   └── architecture.excalidraw.svg   drawn in Excalidraw
+├── impl-run.md                       the implementation loop's run: your approvals, one line per pass
+├── impl.md                           the crate's plan, then the loop's revision log
+├── impl-review.md                    the code review ledger: tests rounds, then review rounds
+└── impl-checks/                      the record of each check run (its logs stay out of git)
 ```
 
-Start one in Claude Code with `/scope-problem <system>`. It creates the folder, interviews you, and writes `requirement.md` to this [spec](../.claude/skills/scope-problem/requirement-spec.md), and adds the system to the [index](../README.md#designs). Then `/new-design <system>` runs the design loop on it and writes the RFC to this [spec](../.claude/skills/new-design/rfc-spec.md); an [exemplar](../.claude/skills/new-design/rfc-exemplar.md) shows every section. `/review-design <system>` adds an on-demand critique to `review.md`.
+Start one in Claude Code with `/scope-problem <system>`. It creates the folder, interviews you, and writes `requirement.md` to this [spec](../.claude/skills/scope-problem/requirement-spec.md), and adds the system to the [index](../README.md#designs). Then `/new-design <system>` runs the design loop on it and writes the RFC to this [spec](../.claude/skills/new-design/rfc-spec.md); an [exemplar](../.claude/skills/new-design/rfc-exemplar.md) shows every section. `/review-design <system>` adds an on-demand critique to `review.md`. `/implement-design <system>` builds the crate in `src/<system>/` to this [spec](../.claude/skills/implement-design/impl-spec.md), and keeps its `impl` files here.
 
 A third file, `investigation.md`, sits beside `scoping.md` only when the requirements were drafted from an existing system's code.
 

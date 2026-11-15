@@ -33,3 +33,7 @@ venv/
 
 # Eval run output (scripts/eval-skills)
 **/evals/results/
+
+# Check logs of the implementation loop: cargo prints absolute paths in them.
+# The record beside them, impl-checks/<label>.md, is committed.
+**/impl-checks/*.log

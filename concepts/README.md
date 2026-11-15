@@ -6,6 +6,8 @@ Notes on building blocks and theory: consistent hashing, replication, CAP, LSM t
 
 _None yet. Notes get added as designs need them, each with a line here._
 
+A concept can have a crate too: `/implement-design <slug>` builds it in `src/<slug>/`, adds a `**Code:**` line under the note's title, and keeps its plan and review ledger in a folder beside the note, `concepts/<slug>/`.
+
 ## Note format
 
 One file per concept, `concepts/<slug>.md`, with this outline:

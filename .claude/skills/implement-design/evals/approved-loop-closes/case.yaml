@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: approved-loop-closes
+expected_outcome: |
+  Both stages are approved (tests round 1 and round 1 in impl-review.md, a passing R0 check
+  record) but the loop was never closed. The skill resumes into the approved state and runs Close:
+  it sets the README row to Implemented with the crate in the Code column, appends the Closed line
+  to impl-run.md, and reports the crate and how to run its tests. It dispatches nothing.
+context:
+  scaffold_script: place-files.sh

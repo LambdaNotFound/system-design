@@ -10,4 +10,4 @@ cargo clippy --all-targets
 cargo fmt
 ```
 
-Each crate implements the core mechanism of its design, not the whole system. Claude writes the skeleton and the failing tests; you fill in the `todo!()`s.
+Each crate implements the core mechanism of its design, not the whole system. `/implement-design` builds it in two reviewed stages: the tests first, in `src/<slug>/tests/`, then the logic. The plan, the check records and the review ledger are beside the design, in `design-doc/<slug>/`, or in `concepts/<slug>/` for a concept. The tests are the place to start reading: each names the requirement it proves.

@@ -11,10 +11,12 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 evals/              shared fixtures and routing cases for the skill evals; each skill's own
                     cases are in .claude/skills/<skill>/evals/
 scripts/            check-skills (lint) · eval-skills (runs the eval cases)
-concepts/           <slug>.md notes on building blocks and theory, linked from the designs
+concepts/           <slug>.md notes on building blocks and theory, linked from the designs;
+                    <slug>/ holds the implementation loop's files when a concept has a crate
 design-doc/<slug>/  requirement.md is the signed-off requirements; scoping.md is its working record;
                     design.md is the RFC with its loop state; review.md is the review ledger;
-                    rfc.md is the exported RFC; diagrams/ holds its Excalidraw drawings
+                    rfc.md is the exported RFC; diagrams/ holds its Excalidraw drawings;
+                    impl.md is the crate's plan and log; impl-review.md is the code review ledger
 src/                Cargo workspace; src/<slug>/ is one crate per system or concept
 README.md           index of all designs (status · started · code)
 ```
@@ -28,7 +30,7 @@ README.md           index of all designs (status · started · code)
 - **Design docs: an agent loop writes the RFC.** `/new-design` takes the signed requirement doc and runs a design-review loop of fresh subagents: an investigator writes the design, a bar-raiser challenges it in rounds until it approves or escalates, and an auditor gives the approved text one editorial pass. Claude leads the loop and writes no design itself. The user decides what the loop escalates. Don't hand-write or hand-edit `design.md`, `review.md` or `rfc.md`.
 - **Reviews: on demand, by a fresh bar-raiser.** `/review-design` critiques a design from this repo or any design doc by path, with an optional focus area. Findings go to the design's `review.md` with IDs. Go through them with the user as a coach; a design changes only when the user picks the objections to fix.
 - **Concept notes: Claude writes them**, with sources and check-your-understanding questions; the user annotates. Format and index: `concepts/README.md`.
-- **Code: kata style.** Claude writes the crate skeleton, types and failing tests, and leaves the core logic as `todo!()` for the user. Write the full implementation only when asked.
+- **Code: an agent loop writes the crate, tests first.** `/implement-design` takes the RFC and runs an implementation loop of fresh subagents: a coding expert plans the crate and the user approves the plan; it writes the types and failing tests, which a bar-raiser reviews against the design; then it writes the logic, which the bar-raiser reviews against the checks Claude ran. Claude leads the loop and writes no code itself. The user decides what the loop escalates and reads the finished crate by hand. Don't hand-edit `impl.md` or `impl-review.md`.
 - **Diagrams:** Claude writes sequence and flow diagrams in Mermaid, inline in the doc. Architecture diagrams are `diagrams/*.excalidraw.svg`, drawn by the user after the design is approved: the RFC carries a brief of what to draw, and Claude reviews the drawing before it is embedded. To look at a drawing on macOS, render it with `qlmanage -t -s 1600 -o <scratchpad> <file>` and read the PNG; elsewhere, read the SVG's `<text>` labels.
 
 ## Changing a skill

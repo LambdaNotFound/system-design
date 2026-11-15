@@ -32,7 +32,7 @@ src/              Rust workspace, one crate per system or concept
 | Scope | `/scope-problem <system>` | Claude interviews you, then writes the requirement doc you sign off |
 | Design | `/new-design <system>` | An agent loop writes a formal RFC from the requirement doc: an investigator drafts, a bar-raiser challenges it in rounds, an auditor tightens the prose |
 | Review | `/review-design <system or path> [focus: …]` | On demand: a fresh bar-raiser critiques the design, or any design doc, with an optional focus area |
-| Build | `/implement-design <system>` | Rust skeleton and failing tests; you write the `todo!()`s |
+| Build | `/implement-design <system>` | An agent loop builds the core mechanism as a Rust crate: a coding expert plans it and you approve the plan, it writes failing tests that a bar-raiser reviews, then the logic, reviewed again. You read the result by hand |
 
 The skills have their own tests: `scripts/check-skills` lints them and `scripts/eval-skills` runs their eval cases. See [evals/](evals/).
 
