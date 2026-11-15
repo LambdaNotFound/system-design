@@ -76,10 +76,10 @@ After every pass, confirm it wrote its file: `impl.md` has the new plan or log e
    - `Status: draft`, whatever the route: scoping is unfinished. Offer `/scope-problem <slug>`, and run on the draft only at the user's explicit word.
 
    With no requirement doc, a `concepts/<slug>.md` written at least through How it works is the brief. With neither, stop and offer `/scope-problem <slug>`. Never invent the requirements, and never edit a brief.
-4. **Rust.** Run `cargo --version`. If Rust isn't installed, stop and tell the user to install it with rustup (https://rustup.rs).
-5. **The tree.** `git status --porcelain -- src/` prints nothing, and `src/<slug>/` doesn't exist. Otherwise show the user what is there and stop. Never stash, reset or clean their work.
-6. **Say what you are about to run:** a crate of one to three mechanisms, built in two stages, the tests first and then the logic, each reviewed for at most 2 rounds; one stop, for their approval of the plan; and the cost: up to 9 deep subagent runs when every round is used.
-7. **Commits.** Ask once per session whether to commit `<dir>` and `src/` after each pass, and wait for the answer before any dispatch. CLAUDE.md has the message format. Push only if the user asks.
+4. **Say what you are about to run:** a crate of one to three mechanisms, built in two stages, the tests first and then the logic, each reviewed for at most 2 rounds; one stop, for their approval of the plan; and the cost: up to 9 deep subagent runs when every round is used.
+5. **Commits.** Ask once per session whether to commit `<dir>` and `src/` after each pass, and wait for the answer. The two checks below come after it, so this opening is the same on every machine. CLAUDE.md has the message format. Push only if the user asks.
+6. **Rust.** Run `cargo --version`. If it fails, stop and tell the user what is missing, and that rustup (https://rustup.rs) installs it. Never install or configure a toolchain yourself.
+7. **The tree.** `git status --porcelain -- src/` prints nothing, and `src/<slug>/` doesn't exist. Otherwise show the user what is there and stop. Never stash, reset or clean their work.
 8. **Write `<dir>/impl-run.md`:** `Slug:`, `Brief:` (the paths), `Crate: src/<slug>`, `Base:` (the full SHA of `HEAD`), and `Started:` (the date and time).
 
 ## The loop
