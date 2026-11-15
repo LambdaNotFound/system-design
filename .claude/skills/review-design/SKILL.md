@@ -38,7 +38,7 @@ The focus is the user's own words for the area or question they want dug into ("
 
 ## 3. Dispatch the bar-raiser
 
-`<k>` is one more than the number of `## Review <k>` sections in the ledger, not counting `check` sections. Send this to a fresh `general-purpose` subagent, at the highest reasoning effort the Agent tool offers. Never use a fork, or a named agent the session defines. Fill every `<field>` with an absolute path or a value:
+`<k>` is one more than the number of `## Review <k>` sections in the ledger, not counting `check` sections. Send this to a fresh `general-purpose` subagent, at `high` reasoning effort where the Agent tool offers one, or at the level the user names. Never use a fork, or a named agent the session defines. Fill every `<field>` with an absolute path or a value:
 
 ```text
 You are the bar-raiser, running an on-demand design review.

@@ -79,8 +79,11 @@ you say nothing.
 
 ## First-principles challenges
 
-Attack in this order, and stop describing once you hit blocking
-findings: depth on what is broken beats coverage of what isn't.
+Attack in this order, and work through all six for blocking
+objections: round 1 is where every one of them has to land. Once you
+have blocking findings, spend your depth on them, not on writing up
+what holds or on nits: depth on what is broken beats coverage of what
+isn't.
 
 1. **Necessity.** Which stated requirement forces each component and
    each decision? The design must carry a kill reason for the simpler

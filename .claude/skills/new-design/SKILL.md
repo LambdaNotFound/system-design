@@ -47,7 +47,7 @@ Dates are `MM/DD/YY` (`date +%m/%d/%y`).
 
 ## Dispatch
 
-Send each role to a fresh `general-purpose` subagent. Never use a fork, or any agent that sees this conversation: the bar-raiser's derivation must not be anchored by it, and the files must carry everything. Do not substitute a named agent the session defines: its own instructions may write to other paths. Where the Agent tool offers a reasoning effort, run the investigator and the bar-raiser at the highest one.
+Send each role to a fresh `general-purpose` subagent. Never use a fork, or any agent that sees this conversation: the bar-raiser's derivation must not be anchored by it, and the files must carry everything. Do not substitute a named agent the session defines: its own instructions may write to other paths. Where the Agent tool offers a reasoning effort, run the investigator and the bar-raiser at `high`. Go higher only when the user names a level: `xhigh` and `max` lengthen every run, and pay off only where a gain has been measured.
 
 Fill every `<field>` with an absolute path or a value, and send:
 
@@ -114,7 +114,7 @@ Relay only slugs, round numbers, verdicts, and tasks. The substance travels thro
 - **Brief corrections.** The agents call the requirement doc the brief. When one reports that it asserts something a source contradicts, put that to the user with the evidence and offer the `## Amendment` that fixes it, at the next stop or at the end. A factual correction does not pause or reopen the design. Never amend on your own. One the user accepts after approval runs as Amending after approval.
 - If the user agreed to commits, commit `<dir>` after each round, pass, and check. The agents write files and never commit.
 - A round with no visible change (no revision-log entry, no new review section) means the loop is stuck: stop and tell the user which role stalled, and on what.
-- Report to the user at the end, or when the loop waits for them, or on a stall: the verdict, the file paths, and the residual risks. No play-by-play of rounds.
+- Keep the user posted between dispatches, one line each: which pass finished, its verdict, and what runs next. The full report comes at the end, or when the loop waits for them, or on a stall: the verdict, the file paths, and the residual risks. The objections stay in the files until then.
 
 ## When the loop waits for the user
 
