@@ -136,8 +136,11 @@ lists, and read those files whole.
 
 The question is whether these tests, once green, prove the crate
 holds what the brief promises. No logic exists yet, so this is the
-cheapest round to be right in. Stop widening once you hit blocking
-findings: depth on what is broken beats coverage of what isn't.
+cheapest round to be right in. Work down the whole list for blocking
+objections: round 1 is where every one of them has to land. Once you
+have blocking findings, spend your depth on them, not on writing up
+what holds or on nits: depth on what is broken beats coverage of what
+isn't.
 
 1. **Coverage.** Walk every invariant, edge case and failure mode in
    your derivation to the test that catches it. A promise of the brief

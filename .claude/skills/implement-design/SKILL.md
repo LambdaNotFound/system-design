@@ -41,7 +41,7 @@ Dates are `MM/DD/YY` (`date +%m/%d/%y`).
 
 ## Dispatch
 
-Send each role to a fresh `general-purpose` subagent. Never use a fork, or any agent that sees this conversation: the bar-raiser's derivation must not be anchored by it, and the files must carry everything. Do not substitute a named agent the session defines, and never pass a `name` on the Agent call: a named call can start a teammate instead of a subagent. Where the Agent tool offers a reasoning effort, run the coding expert at `xhigh` and the bar-raiser at `max`.
+Send each role to a fresh `general-purpose` subagent. Never use a fork, or any agent that sees this conversation: the bar-raiser's derivation must not be anchored by it, and the files must carry everything. Do not substitute a named agent the session defines, and never pass a `name` on the Agent call: a named call can start a teammate instead of a subagent. Where the Agent tool offers a reasoning effort, run both roles at `high`. Go higher only when the user names a level: `xhigh` and `max` lengthen every run, and pay off only where a gain has been measured.
 
 Fill every `<field>` with an absolute path or a value, and send:
 
@@ -107,7 +107,7 @@ After every pass, confirm it wrote its file: `impl.md` has the new plan or log e
 - With commits on, `git status --porcelain -- src/` prints nothing after a review pass. If it prints anything, the reviewer changed the tree: stop and show the user.
 - **Brief corrections.** When an agent reports that the brief asserts something the code or a source contradicts, put it to the user with the evidence, at the next stop or at the end. The fix is an amendment through `/new-design <slug>`, or a design fix through `/review-design <slug>`.
 - An amendment to the requirement doc, or a new `Scope:` line, while the loop is open sends it through the map and the plan gate again. The loop then resumes where the files say it was, and the bar-raiser's next round re-derives against the change.
-- Report to the user at the plan gate, at the end, or when the loop waits for them. No play-by-play of rounds.
+- Keep the user posted between passes, one line each: which pass finished, its result or verdict, and what runs next. The full report comes at the plan gate, at the end, or when the loop waits for them. The objections stay in the files until then.
 
 ## When the loop waits for the user
 
