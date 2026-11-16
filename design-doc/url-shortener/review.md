@@ -91,3 +91,32 @@ Spot-checks: CockroachDB Global Tables row (consistent local replica reads, comm
 Round 5 is the budget's last: if R4-1 closes without new gaps, the next round approves.
 
 Verdict: revise
+
+## Round 5
+
+11/16/26. Standing derivation, carried from Round 4 unchanged (no amendment in the brief; no rebuttal moved it):
+
+- Invariants: code to URL is write-once (FR5, NFR7); one FR4-normalized URL maps to at most one returned code through a single linearization point (FR3); a code is durable in two regions before it is returned (NFR6) and resolvable by every serving server at that moment (NFR11), so no negative cache may outlive a create.
+- Constraints: 1,157 creates/s and 11,574 redirects/s average, 10x peak (NFR1); 365 billion rows (NFR2); 8 random base62 characters, 0.167% full (NFR8, NFR12); S + T + M within FR6's 300 s.
+- Minimum parts: stateless servers; a sharded, strongly consistent multi-region store with conditional inserts on code and URL key; a positive-only bounded cache; per-caller counters that fail open, keyed on the address block one caller actually holds, with an NFR8 cool-off that rejects from the limit onward on every lookup path, in every region, that no prober can route around by choosing how its lookups fail, and whose collateral cost is stated and observable.
+- Seams for this round: R4-1's shed path (whether a dirty identity can still choose sheds over misses), the Appendix's shed sentence and yield, the NFR4 cost of an attacker-triggered shed `503` on a shared prefix, and word count after the fix.
+
+Diff against the design: R4-1 is answered as accepted, reshaped, and the text matches the response (commit 636231a): a shed of a locally absent code counts as a miss once the identity has a miss in the window, so a dirty prober outrunning its 16 slots fills one count and reaches the hour's cool-off; the shed limit alone binds only for an identity step 4 never answers. I tried to make the prober choose the shed path again and could not: an identity's first lookups take clean slots, the first that completes is a miss, and from then on every shed is charged toward the cool-off; to stay missless it needs step 4 to fail for it, an outage or a clean pool saturated by others, which is the wide-botnet residual already stated. A /48 holder rotating /64s dirties its /48 on the first /64's miss, so "only while step 4 fails for it" holds for the shared-prefix `503`. The rebuttal of my slot-refusal variant holds: dirty slots are shared, so a refusal says nothing about whose load caused it. The step 1 sketch, Sheds, the slow-store bullet, the Overview caveat and the Metrics agree with one another. FR and NFR tables verbatim; word count 4,000 of 4,000; dashes only inside SQL comments; no `path:line` above the marker. My derivation reconciles with the design.
+
+R5-1 | nit | Appendix "these bounds hold": a prober pinned to one server at r = 1,000 fills the 48 clean slots itself before its first miss lands at about 70 ms, so roughly 20 of its lookups are shed while it is still missless and are charged as sheds, not misses; they never convert. That adds about 20 probes per region per hour, 3 × (50 + 70 + 22) × 24 / 598 = 17.1 live codes a day against the stated 14.4, within the assumed r's uncertainty. | Say the cycle answers 50 plus the overshoot plus the sheds taken before the first miss, or note the bound as approximate.
+
+Closed: R4-1 resolved (confirmed-miss rule closes the self-saturation route; Appendix shed sentence and the shared-prefix NFR4 cost corrected and priced; rebuttal of the slot-refusal variant holds). R1 to R3 objections stay closed; no regression found.
+
+Spot-checks: CockroachDB Follower Reads row (local reads under partition, increasingly stale; `nearest_only` errors; single-row implicit transaction; at least 4.2 s) held, page read 11/16/26; Multi-Region Survival Goals row (at least 3 regions, 5 replicas 2+2+1, fully available for reads and writes through a region outage, write latency up by at least the nearest RTT) held, page read 11/16/26; NFR4 row read against the shared-prefix claim (NFR8 rejections count as available, `503`s do not) held; arithmetic rows (16 / 0.05 = 320, 680, 0.01 × 600 = 6 s, 3,154 s, 14.4, 104.7, 1.7) held on recomputation; FR and NFR tables verbatim and word count 4,000 held.
+
+Residual risks:
+- A wide botnet saturating a server's 48 clean step 4 slots fails fresh codes there with `503` (NFR4, NFR11), and its identities probe under the shed limit alone at 1.7 live codes an hour each; trigger: step 4 rejections over F and shed-limit `503`s per region.
+- One prober's cool-off on a carrier /56 or /48 rejects up to 256 or 65,536 phones for an hour, everywhere, counted as available under NFR4; trigger: the page on a /56 or /48 cool-off rejecting over 16 /64s without misses.
+- A legitimate client with one `404` that is shed 49 more times in a window, under a slow leaseholder or dirty-slot contention, gets the hour's cool-off; trigger: the metric of cool-offs started mostly by sheds.
+- NFR3, NFR4 and NFR5 rest on assumed figures (80% hit rate, 50 ms step 4 read, half-peak regional sizing, 11,600 two-range transactions a second); trigger: the Task 2 and Task 3 load tests and the Task 6 region-isolation drill.
+- The RFC sits at exactly 4,000 words, so any later addition needs a matching cut; trigger: the editorial pass or an amendment.
+
+Unaddressed:
+- R5-1 (nit).
+
+Verdict: approve-with-risks
