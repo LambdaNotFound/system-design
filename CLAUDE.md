@@ -45,7 +45,7 @@ The flow, the case format and what each case kind checks are in `evals/README.md
 - A skill counts as implemented when it has at least three eval cases, covering the trigger, first-turn, mid-state and artifact kinds.
 - A bug found in a skill gets a regression case in the same change as its fix.
 - The skills are written for Opus, the model they mainly run on. Evaluate them there: `scripts/eval-skills <skill> --model opus`. Without `--model` the script uses your Claude Code default, which may be another model. A change made for one model gets a baseline: run the affected targets on that model before the edit, and again after.
-- Eval runs spend the same usage limit as the session. A run that hits it prints `FAIL` at a cost of $0, with `5-hour limit` in the error: rerun it after the reset, don't debug it.
+- Eval runs spend the same usage limit as the session. `eval-skills` stops at the first run that hits it and exits 2: after the reset, rerun the same command with `--resume`, which skips the cases that finished. Don't debug a limit stop.
 - The loop skills dispatch their subagents at `high` effort. Go higher only when the user names a level.
 - This repository is public. A skill writes repository-relative paths into the files it commits, never absolute ones, and keeps raw tool logs out of git.
 

@@ -7,12 +7,22 @@
     scripts/eval-skills cross-skill         cases that need every skill folder loaded
     scripts/eval-skills scope-problem --full
     scripts/eval-skills --case 'resumes-*' --model sonnet --max-cost 3
+    scripts/eval-skills scope-problem --full --resume
 
 Quick (the default) runs each case once with no baseline. --full runs each case
 three times, plus a baseline without the skill. These are real, billed model
 runs on your account. The lint (scripts/check-skills) runs first, for free.
+
+Each case is its own runner call. A run that hits the usage limit stops
+everything, because every run after it would fail at $0 too. Each finished case
+gets a line in evals/results/ledger.jsonl, keyed by a hash of the skill files
+and of the case and its fixtures. After the reset, rerun the same command with
+--resume: it skips the cases the ledger already has for those hashes, so a case
+whose files changed since runs again.
 """
 import argparse
+import fnmatch
+import hashlib
 import json
 import os
 import re
@@ -20,6 +30,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -27,6 +38,9 @@ SKILLS = ROOT / ".claude" / "skills"
 ROUTING = ROOT / "evals" / "routing"
 WRAPPER_TAGS = {"routing": "trigger", "cross-skill": "cross-skill"}   # target -> case tag
 MIN_GIT = (2, 31)   # the runner needs it to switch off the repo's git hooks during a run
+LEDGER = ROOT / "evals" / "results" / "ledger.jsonl"   # git ignores evals/results/
+# "You've hit your 5-hour limit · resets 4:30pm", "You've reached your Fable limit."
+LIMIT_ERROR = re.compile(r"(hit|reached) your [^.]{0,40}limit", re.I)
 
 
 def targets():
@@ -85,32 +99,98 @@ def default_model():
         return None
 
 
-def summarize(name, result, mode, model):
-    """Print one line per case and return True when every case passed."""
-    print(f"\n{name}  ({mode}, model: {model or 'runner default'})")
-    cases = result.get("cases", [])
-    all_passed = bool(cases)
-    for case in cases:
-        runs = case.get("arms", {}).get("with", [])
-        passed_runs = sum(1 for run in runs if run.get("passed"))
-        ok = bool(runs) and passed_runs == len(runs)
-        all_passed = all_passed and ok
-        graders = runs[0].get("graders", []) if runs else []
-        detail = f"{sum(1 for g in graders if g.get('passed'))}/{len(graders)} graders"
-        if len(runs) > 1:
-            detail = f"{passed_runs}/{len(runs)} runs"
-        print(f"  {'PASS' if ok else 'FAIL'}  {case['name']:<42} {detail}")
-        for number, run in enumerate(runs, 1):
-            label = f"run {number}: " if len(runs) > 1 else ""
-            if run.get("error"):
-                print(f"          {label}error: {run['error']}")
-            for grader in run.get("graders", []):
-                if not grader.get("passed"):
-                    print(f"          {label}failed {grader['name']}: {grader.get('explanation', '')}")
-    if not cases:
-        print("  no cases ran")
-    print(f"  cost ${result.get('costUsd', 0):.2f}, {result.get('durationSeconds', 0)}s")
-    return all_passed
+def cases_of(name, folder):
+    """The case folders the runner runs for this target, in name order."""
+    found = []
+    for prompt in sorted((folder / "evals").glob("*/prompt.md")):
+        if name in WRAPPER_TAGS and WRAPPER_TAGS[name] not in wrapper_case_tags(prompt):
+            continue
+        found.append(prompt.parent)
+    return found
+
+
+def tree_digest(tops):
+    """sha256 over every file under the given folders, minus each skill's evals/ and caches."""
+    digest = hashlib.sha256()
+    for top in tops:
+        for folder, dirs, names in os.walk(str(top)):
+            here = Path(folder)
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__"
+                             and not (d == "evals" and here.parent == SKILLS))
+            for file_name in sorted(names):
+                if file_name == ".DS_Store" or file_name.endswith(".pyc"):
+                    continue
+                path = here / file_name
+                digest.update(str(path.relative_to(ROOT)).encode() + b"\0")
+                digest.update(hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def inputs_of(name, case_dir):
+    """(skills hash, case hash): what decides a case's result besides the model."""
+    if name in WRAPPER_TAGS:
+        skills = sorted(path for path in SKILLS.iterdir() if (path / "SKILL.md").exists())
+    else:
+        skills = [SKILLS / name]
+    return tree_digest(skills), tree_digest([case_dir, ROOT / "evals" / "fixtures"])
+
+
+def ledger_key(entry):
+    return (entry["target"], entry["case"], entry["mode"], entry["model"], entry["skills"], entry["inputs"])
+
+
+def read_ledger():
+    entries = {}
+    if LEDGER.exists():
+        for line in LEDGER.read_text(encoding="utf-8").splitlines():
+            try:
+                entry = json.loads(line)
+                entries[ledger_key(entry)] = entry
+            except (ValueError, KeyError):
+                continue   # a line cut short by an interrupted write
+    return entries
+
+
+def append_ledger(entry):
+    LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    with open(LEDGER, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, sort_keys=True) + "\n")
+
+
+def limit_error(case):
+    """The first usage-limit error among the case's runs, or None."""
+    for runs in case.get("arms", {}).values():
+        for run in runs:
+            if run.get("error") and LIMIT_ERROR.search(run["error"]):
+                return run["error"]
+    return None
+
+
+def mean_score(runs):
+    return round(sum(run.get("score") or 0 for run in runs) / len(runs), 3) if runs else None
+
+
+def report_case(case):
+    """Print the case's line, and its errors and failed graders. True when every run passed."""
+    runs = case.get("arms", {}).get("with", [])
+    passed_runs = sum(1 for run in runs if run.get("passed"))
+    ok = bool(runs) and passed_runs == len(runs)
+    graders = runs[0].get("graders", []) if runs else []
+    detail = f"{sum(1 for g in graders if g.get('passed'))}/{len(graders)} graders"
+    if len(runs) > 1:
+        detail = f"{passed_runs}/{len(runs)} runs"
+    baseline = case.get("arms", {}).get("without", [])
+    if baseline:
+        detail += f", score {mean_score(runs)} vs {mean_score(baseline)} without the skill"
+    print(f"  {'PASS' if ok else 'FAIL'}  {case['name']:<42} {detail}")
+    for number, run in enumerate(runs, 1):
+        label = f"run {number}: " if len(runs) > 1 else ""
+        if run.get("error"):
+            print(f"          {label}error: {run['error']}")
+        for grader in run.get("graders", []):
+            if not grader.get("passed"):
+                print(f"          {label}failed {grader['name']}: {grader.get('explanation', '')}")
+    return ok
 
 
 def main():
@@ -122,7 +202,10 @@ def main():
     parser.add_argument("--model", help="model to run on (default: EVAL_MODEL, else your Claude Code default)")
     parser.add_argument("--case", help="only cases whose name matches this glob")
     parser.add_argument("--max-cost", type=float, metavar="USD", help="hard cost ceiling per target")
-    parser.add_argument("-j", "--concurrency", type=int, default=1, help="runs at once, 1 to 8")
+    parser.add_argument("-j", "--concurrency", type=int, default=1,
+                        help="runs at once within a case, 1 to 8 (cases run one at a time)")
+    parser.add_argument("--resume", action="store_true",
+                        help="skip cases the ledger already has for the same files, mode and model")
     parser.add_argument("--skip-lint", action="store_true")
     args = parser.parse_args()
 
@@ -137,43 +220,105 @@ def main():
     env = env_with_new_enough_git()
     model = args.model or default_model()
     mode = "full" if args.full else "quick"
+    done = read_ledger() if args.resume else {}
     all_passed = True
-    for name in args.target or list(available):
-        with tempfile.TemporaryDirectory() as scratch:
-            json_path = os.path.join(scratch, "result.json")
-            command = ["claude", "plugin", "eval", str(available[name]),
-                       "--scaffold",        # cases copy their fixture files in
-                       "--trust-plugin",    # these are this repo's own skills and cases
-                       "--no-publish",      # keep the HTML report on this machine
-                       "--allow-tools", "Write", "Edit", "Bash",
-                       "--concurrency", str(args.concurrency),
-                       "--json", json_path]
-            command += ["--runs", "3", "--ablation", "with-without"] if args.full \
-                else ["--runs", "1", "--ablation", "none"]
-            if name in WRAPPER_TAGS:
-                # The wrapper links to every skill, so the runner would also find each
-                # skill's own cases there and run them a second time.
-                command += ["--tag", WRAPPER_TAGS[name]]
-            if name == "routing":
-                # A routing case ends once the right skill has fired. Without this, a
-                # skill that dispatches a subagent goes on to do its real work.
-                command += ["--disallow-tools", "Agent", "Task"]
-            if model:
-                command += ["--model", model]
-            if args.case:
-                command += ["--case", args.case]
-            if args.max_cost is not None:
-                command += ["--max-cost-usd", str(args.max_cost)]
-            subprocess.run(command, cwd=str(ROOT), env=env)
-            try:
-                with open(json_path, encoding="utf-8") as handle:
-                    result = json.load(handle)
-            except (OSError, ValueError):
-                print(f"\n{name}: the runner wrote no result")
+    stopped = None   # (target, case, error, how many cases were left unrun)
+    names = args.target or list(available)
+
+    def selected(name):
+        return [case_dir for case_dir in cases_of(name, available[name])
+                if not args.case or fnmatch.fnmatchcase(case_dir.name, args.case)]
+
+    for index, name in enumerate(names):
+        cases = selected(name)
+        print(f"\n{name}  ({mode}, model: {model or 'runner default'})")
+        if not cases:
+            print("  no cases match")
+        spent, seconds = 0.0, 0
+        for position, case_dir in enumerate(cases):
+            skills_hash, inputs_hash = inputs_of(name, case_dir)
+            key = (name, case_dir.name, mode, model, skills_hash, inputs_hash)
+            if key in done:
+                entry = done[key]
+                print(f"  skip  {case_dir.name:<42} {'PASS' if entry['passed'] else 'FAIL'} "
+                      f"on {entry['at'][:16]}, same files")
+                all_passed = all_passed and entry["passed"]
+                continue
+            if args.max_cost is not None and spent >= args.max_cost:
+                print(f"  cost ceiling ${args.max_cost:.2f} reached: "
+                      f"{len(cases) - position} case(s) not run")
+                all_passed = False
+                break
+            result = run_case(name, available[name], case_dir.name, args, model, env,
+                              None if args.max_cost is None else args.max_cost - spent)
+            if result is None:
+                print(f"  FAIL  {case_dir.name:<42} the runner wrote no result")
                 all_passed = False
                 continue
-            all_passed = summarize(name, result, mode, model) and all_passed
+            spent += result.get("costUsd") or 0
+            seconds += result.get("durationSeconds") or 0
+            case = next((c for c in result.get("cases", []) if c.get("name") == case_dir.name), None)
+            if case is None:
+                print(f"  FAIL  {case_dir.name:<42} the runner ran no case by that name")
+                all_passed = False
+                continue
+            error = limit_error(case)
+            if error:
+                left = len(cases) - position + sum(len(selected(n)) for n in names[index + 1:])
+                stopped = (name, case_dir.name, error, left)
+                break
+            ok = report_case(case)
+            all_passed = all_passed and ok
+            append_ledger({
+                "at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "target": name, "case": case_dir.name,
+                "mode": mode, "model": model, "skills": skills_hash, "inputs": inputs_hash,
+                "passed": ok, "with": mean_score(case.get("arms", {}).get("with", [])),
+                "without": mean_score(case.get("arms", {}).get("without", [])),
+                "cost": round(result.get("costUsd") or 0, 4)})
+        print(f"  cost ${spent:.2f}, {seconds}s")
+        if stopped:
+            break
+    if stopped:
+        target, case_name, error, left = stopped
+        print(f"\nStopped: {target} {case_name} hit the usage limit ({error.strip()}).\n"
+              f"{left} case(s) did not run, that one included. After the reset, rerun the same\n"
+              f"command with --resume; it skips the cases that finished.")
+        sys.exit(2)
     sys.exit(0 if all_passed else 1)
+
+
+def run_case(name, folder, case_name, args, model, env, budget):
+    """One runner call for one case. Returns its result JSON, or None if it wrote none."""
+    with tempfile.TemporaryDirectory() as scratch:
+        json_path = os.path.join(scratch, "result.json")
+        command = ["claude", "plugin", "eval", str(folder),
+                   "--scaffold",        # cases copy their fixture files in
+                   "--trust-plugin",    # these are this repo's own skills and cases
+                   "--no-publish",      # keep the HTML report on this machine
+                   "--allow-tools", "Write", "Edit", "Bash",
+                   "--concurrency", str(args.concurrency),
+                   "--case", case_name,
+                   "--json", json_path]
+        command += ["--runs", "3", "--ablation", "with-without"] if args.full \
+            else ["--runs", "1", "--ablation", "none"]
+        if name in WRAPPER_TAGS:
+            # The wrapper links to every skill, so the runner would also find each
+            # skill's own cases there and run them a second time.
+            command += ["--tag", WRAPPER_TAGS[name]]
+        if name == "routing":
+            # A routing case ends once the right skill has fired. Without this, a
+            # skill that dispatches a subagent goes on to do its real work.
+            command += ["--disallow-tools", "Agent", "Task"]
+        if model:
+            command += ["--model", model]
+        if budget is not None:
+            command += ["--max-cost-usd", f"{max(budget, 0.01):.2f}"]
+        subprocess.run(command, cwd=str(ROOT), env=env)
+        try:
+            with open(json_path, encoding="utf-8") as handle:
+                return json.load(handle)
+        except (OSError, ValueError):
+            return None
 
 
 if __name__ == "__main__":
