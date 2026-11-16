@@ -7,6 +7,25 @@ Each rule names repo diagrams that show it. Frequencies are approximate tallies.
 
 Templates for every technique are in `element-templates.md`. Colors are in `color-palette.md`.
 
+## Contents
+
+- 1. Pick the diagram kind first
+- 2. Group by real boundaries
+- 3. Same kind, same look
+- 4. Color encodes one thing
+- 5. Label every arrow
+- 6. Use line style for one more meaning
+- 7. Number the steps of a flow
+- 8. Show many with one
+- 9. Push the outside to the edge
+- 10. Be concrete
+- 11. Text
+- 12. Layout
+- 13. Series: reuse one canvas
+- 14. Legends and titles
+- 15. Mistakes seen in the repo
+- 16. What Excalidraw cannot do, and the substitute
+
 ---
 
 ## 1. Pick the diagram kind first

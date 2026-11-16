@@ -133,7 +133,9 @@ def check_skill_file(skill_dir):
             error(f"{where}:{number}", "a dollar sign before a digit is replaced with the skill's "
                                        "arguments; move that text to a supporting file")
 
-    for md_file in sorted(skill_dir.glob("*.md")):
+    for md_file in sorted(skill_dir.rglob("*.md")):
+        if "evals" in md_file.relative_to(skill_dir).parts:
+            continue   # eval cases are linted below, by their own rules
         check_links(md_file)
         if md_file.name == "SKILL.md":
             continue

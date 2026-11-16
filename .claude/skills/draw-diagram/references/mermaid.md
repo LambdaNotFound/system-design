@@ -2,6 +2,17 @@
 
 How to write this skill's diagrams in Mermaid. The syntax comes from the Mermaid docs at [mermaid.js.org](https://mermaid.js.org/syntax/flowchart.html) (flowchart, sequence, and state pages, read 2026-11-13). Every example, and every row of section 8 but one, was run through Mermaid 10 and Mermaid 11 that day. The direction rule in section 2 was measured in both on 2026-11-15, when the architecture example moved to `TB` and was run again. The style rules are the same as for Excalidraw: read `style-guide.md` first, and take colors from `color-palette.md`.
 
+## Contents
+
+- 1. Write for the oldest Mermaid in use
+- 2. Pick the type
+- 3. Flowchart shapes
+- 4. Edges
+- 5. Colors
+- 6. Examples
+- 7. Title, caption, and legend
+- 8. Syntax that breaks
+
 ---
 
 ## 1. Write for the oldest Mermaid in use

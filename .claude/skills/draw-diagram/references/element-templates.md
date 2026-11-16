@@ -2,6 +2,16 @@
 
 Copy-paste JSON for every shape in `style-guide.md`. Each template is a complete JSON array whose elements go into the file's `elements` list. Change ids, positions, sizes, text, and colors; take colors from `color-palette.md`.
 
+## Contents
+
+- Rules for every template
+- Text
+- Shapes
+- Grouping
+- Connectors
+- Sequence diagrams
+- Legend
+
 ## Rules for every template
 
 - Excalidraw fills any field you leave out with its default, so templates list only the fields that matter. Always set `type`, `id`, `x`, `y`, `width`, and `height`. Keep `roughness: 0` for the clean style.
