@@ -7,10 +7,12 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 ```
 .claude/skills/     scope-problem · new-design · review-design · implement-design · draw-diagram
 .githooks/          commit-msg checks the commit format; prepare-commit-msg adds the date;
-                    pre-commit lints the skills
+                    pre-commit lints the skills; post-commit, post-merge and post-rewrite
+                    install them into ~/.claude/skills when on main
 evals/              shared fixtures and routing cases for the skill evals; each skill's own
                     cases are in .claude/skills/<skill>/evals/
-scripts/            check-skills (lint) · eval-skills (runs the eval cases)
+scripts/            check-skills (lint) · eval-skills (runs the eval cases) ·
+                    sync-skills (installs the skills for every project)
 concepts/           <slug>.md notes on building blocks and theory, linked from the designs;
                     <slug>/ holds the implementation loop's files when a concept has a crate
 design-doc/<slug>/  requirement.md is the signed-off requirements; scoping.md is its working record;
@@ -38,6 +40,7 @@ README.md           index of all designs (status · started · code)
 The flow, the case format and what each case kind checks are in `evals/README.md`.
 
 - After editing a skill, run `scripts/check-skills`. It's free, and the pre-commit hook runs it too.
+- The skills are installed globally. On main, each commit copies `.claude/skills/`, minus each `evals/` folder, into `~/.claude/skills/` (`scripts/sync-skills`). A personal skill outranks a project skill of the same name, so that copy is what runs, in this repo too. To try an uncommitted edit by hand, run `scripts/sync-skills --worktree`, then `scripts/sync-skills` to go back to the committed version. The evals read this repo's folder, so they don't need it.
 - `scripts/eval-skills <skill>` runs that skill's eval cases once each; `--full` runs them three times with a baseline. Both make billed model runs, so run them when the user asks or agrees. Use `--full` before committing a change to what a skill does.
 - A skill counts as implemented when it has at least three eval cases, covering the trigger, first-turn, mid-state and artifact kinds.
 - A bug found in a skill gets a regression case in the same change as its fix.

@@ -17,11 +17,11 @@ Building blocks and theory live in **[concepts/](concepts/)**.
 
 ```
 .claude/skills/   Claude Code skills for the workflow below
-.githooks/        commit message hooks, and a pre-commit lint for the skills
+.githooks/        commit message hooks, a pre-commit lint for the skills, and their sync to ~/.claude
 concepts/         notes on building blocks and theory, linked from the designs
 design-doc/       one folder per system: requirement.md, design.md, review.md, rfc.md + diagrams/
 evals/            tests for the skills: fixtures and routing cases (see evals/README.md)
-scripts/          check-skills lints the skills; eval-skills runs their eval cases
+scripts/          check-skills lints the skills; eval-skills runs their eval cases; sync-skills installs them
 src/              Rust workspace, one crate per system or concept
 ```
 
@@ -42,7 +42,8 @@ Architecture diagrams are drawn by hand in Excalidraw, after the design is appro
 ## Setup (once per clone)
 
 ```sh
-git config core.hooksPath .githooks   # turn on the commit message hooks
+git config core.hooksPath .githooks   # turn on the hooks
+scripts/sync-skills                   # install the skills for every project; commits on main keep them in step
 ```
 
 - **Rust:** install with [rustup](https://rustup.rs).

@@ -1,0 +1,282 @@
+#!/usr/bin/env python3
+"""Install this repo's skills into ~/.claude/skills, so every project uses them.
+
+    scripts/sync-skills              copy the skills as committed at HEAD
+    scripts/sync-skills --dry-run    say what would change, write nothing
+    scripts/sync-skills --check      exit 1 if the installed skills differ from HEAD
+    scripts/sync-skills --worktree   copy the working tree instead, to try an uncommitted edit
+
+The post-commit, post-merge and post-rewrite hooks run it on main, so what is
+committed there is what every project sees. A unit is one skill folder, copied
+whole except its evals/ folder: the cases and their results are for developing
+the skill, not for running it.
+
+It writes ~/.claude/skills/<name>/ for each skill in this repo, and nothing else
+in that folder: skills/synced/ (claude.ai's) and skills other tools installed
+are left alone. Its state file is ~/.claude/.system-design-sync. Before it
+replaces a folder it did not install, or one edited since it installed it, it
+moves that folder to ~/.claude/skills-backups/<time>/. A skill deleted from the
+repo goes there too. $CLAUDE_CONFIG_DIR, when set, stands in for ~/.claude.
+"""
+import argparse
+import hashlib
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SKILLS = ".claude/skills"
+STATE_NAME = ".system-design-sync"
+RESERVED = {"synced"}   # claude.ai writes its synced skills there
+
+
+def git(*args):
+    run = subprocess.run(["git", "-C", str(ROOT), *args],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if run.returncode != 0:
+        sys.exit("sync-skills: git %s failed: %s"
+                 % (" ".join(args), run.stderr.decode(errors="replace").strip()))
+    return run.stdout
+
+
+def skipped(rel):
+    """True for paths that are never installed: evals/, caches, Finder litter."""
+    parts = rel.split("/")
+    return (len(parts) > 1 and parts[1] == "evals") or "__pycache__" in parts \
+        or parts[-1] == ".DS_Store" or rel.endswith(".pyc")
+
+
+def read_head():
+    """Path under .claude/skills -> (executable, bytes), as committed at HEAD."""
+    files = {}
+    with tarfile.open(fileobj=io.BytesIO(git("archive", "--format=tar", "HEAD", SKILLS))) as tar:
+        for member in tar:
+            rel = member.name[len(SKILLS) + 1:]
+            if member.issym() or member.islnk():
+                print("sync-skills: skipping the link %s" % member.name, file=sys.stderr)
+            elif member.isfile():
+                files[rel] = (bool(member.mode & 0o100), tar.extractfile(member).read())
+    return files
+
+
+def read_worktree():
+    """The same, from the working tree: tracked files plus untracked ones git doesn't ignore."""
+    files = {}
+    listed = git("ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", SKILLS)
+    for name in listed.decode().split("\0"):
+        path = ROOT / name
+        if not name or not path.is_file():   # empty tail, or deleted but not yet staged
+            continue
+        if path.is_symlink():
+            print("sync-skills: skipping the link %s" % name, file=sys.stderr)
+            continue
+        files[name[len(SKILLS) + 1:]] = (bool(path.stat().st_mode & 0o100), path.read_bytes())
+    return files
+
+
+def group(files):
+    """Skill name -> {path inside the skill: entry}, for folders that hold a SKILL.md."""
+    skills = {}
+    for rel, entry in files.items():
+        parts = rel.split("/")
+        if len(parts) < 2 or parts[0].startswith(".") or skipped(rel):
+            continue
+        skills.setdefault(parts[0], {})["/".join(parts[1:])] = entry
+    return {name: tree for name, tree in skills.items() if "SKILL.md" in tree}
+
+
+def read_dir(top):
+    """An installed skill folder, read the way group() describes a source one."""
+    files = {}
+    for folder, dirs, names in os.walk(str(top)):
+        dirs.sort()
+        for name in sorted(names):
+            path = Path(folder) / name
+            rel = path.relative_to(top).as_posix()
+            if skipped("x/" + rel):
+                continue
+            if path.is_symlink():
+                files[rel] = (False, b"link to " + os.readlink(str(path)).encode())
+            elif path.is_file():
+                files[rel] = (bool(path.stat().st_mode & 0o100), path.read_bytes())
+    return files
+
+
+def tree_hash(tree):
+    digest = hashlib.sha256()
+    for rel in sorted(tree):
+        executable, data = tree[rel]
+        digest.update(b"%s\0%d\0%s\n" % (rel.encode(), executable,
+                                         hashlib.sha256(data).hexdigest().encode()))
+    return digest.hexdigest()
+
+
+def plan(source, dest, installed):
+    """(name, action, reason) per skill. Actions: install, update, replace, ok, remove, untrack."""
+    steps = []
+    for name in sorted(source):
+        target = dest / name
+        new = tree_hash(source[name])
+        if not (target.exists() or target.is_symlink()):
+            steps.append((name, "install", ""))
+            continue
+        current = None if target.is_symlink() or not target.is_dir() else tree_hash(read_dir(target))
+        if current == new:
+            steps.append((name, "ok", ""))
+        elif name not in installed:
+            steps.append((name, "replace", "not installed by this script"))
+        elif current != installed[name]:
+            steps.append((name, "replace", "edited since it was installed"))
+        else:
+            steps.append((name, "update", ""))
+    for name in sorted(set(installed) - set(source)):
+        if (dest / name).exists() or (dest / name).is_symlink():
+            steps.append((name, "remove", "no longer in the repo"))
+        else:
+            steps.append((name, "untrack", ""))
+    return steps
+
+
+def write_tree(top, tree):
+    for rel, (executable, data) in tree.items():
+        path = top / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        path.chmod(0o755 if executable else 0o644)
+
+
+def apply(steps, source, base, installed):
+    """Carry out the plan. Each skill is built in a staging folder, then moved into place.
+    Returns the backup paths it filled."""
+    dest = base / "skills"
+    dest.mkdir(parents=True, exist_ok=True)
+    backups = base / "skills-backups" / time.strftime("%Y%m%d-%H%M%S")
+    stage = Path(tempfile.mkdtemp(prefix=".system-design-sync-", dir=str(base)))
+    saved = []
+    try:
+        for name, action, _ in steps:
+            target = dest / name
+            if action in ("install", "update", "replace"):
+                write_tree(stage / name, source[name])
+            if action in ("replace", "remove"):
+                backups.mkdir(parents=True, exist_ok=True)
+                kept, n = backups / name, 1
+                while kept.exists() or kept.is_symlink():   # two runs in one second
+                    kept, n = backups / ("%s.%d" % (name, n)), n + 1
+                shutil.move(str(target), str(kept))
+                saved.append(kept)
+            elif action == "update":
+                shutil.move(str(target), str(stage / (".old-" + name)))
+            if action in ("install", "update", "replace"):
+                shutil.move(str(stage / name), str(target))
+            if action in ("remove", "untrack"):
+                installed.pop(name, None)
+            else:
+                installed[name] = tree_hash(source[name])
+    finally:
+        shutil.rmtree(str(stage), ignore_errors=True)
+    return saved
+
+
+def load_state(path):
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())["skills"]
+    except (ValueError, KeyError) as err:
+        sys.exit("sync-skills: can't read %s (%s). Move it aside and run again." % (path, err))
+
+
+def save_state(path, installed, origin):
+    data = {"source": str(ROOT), "from": origin,
+            "synced_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "skills": installed}
+    temp = path.with_name(path.name + ".tmp")
+    temp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    os.replace(str(temp), str(path))
+
+
+def other_owners(base, names):
+    """Warn when another tool's state file (~/.claude/.<tool>-sync) installs the same skills."""
+    for state in sorted(base.glob(".*-sync")):
+        if state.name == STATE_NAME or not state.is_file():
+            continue
+        try:
+            units = set(state.read_text().split())
+        except (OSError, UnicodeDecodeError):
+            continue
+        clash = sorted(name for name in names if "skills/" + name in units)
+        if clash:
+            print("warning: %s also installs %s. Its next run puts its own copies back, and this\n"
+                  "         script then backs those up and replaces them again. Exclude these skills\n"
+                  "         in that tool." % (tilde(state), ", ".join(clash)), file=sys.stderr)
+
+
+def tilde(path):
+    home = str(Path.home())
+    return "~" + str(path)[len(home):] if str(path).startswith(home) else str(path)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Install this repo's skills into ~/.claude/skills.",
+        formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
+    parser.add_argument("--dry-run", action="store_true", help="say what would change, write nothing")
+    parser.add_argument("--check", action="store_true", help="exit 1 if anything would change")
+    parser.add_argument("--worktree", action="store_true",
+                        help="copy the working tree, uncommitted edits included, instead of HEAD")
+    parser.add_argument("--quiet", action="store_true", help="print only changes and warnings")
+    args = parser.parse_args()
+
+    base = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").expanduser()
+    dest, state_file = base / "skills", base / STATE_NAME
+    source = group(read_worktree() if args.worktree else read_head())
+    origin = "worktree" if args.worktree else "HEAD " + git("rev-parse", "--short", "HEAD").decode().strip()
+    if not source:
+        sys.exit("sync-skills: no skills under %s at %s" % (SKILLS, origin))
+    if RESERVED & set(source):
+        sys.exit("sync-skills: %s is reserved in ~/.claude/skills; rename that skill"
+                 % ", ".join(sorted(RESERVED & set(source))))
+
+    installed = load_state(state_file)
+    steps = plan(source, dest, installed)
+    changes = [step for step in steps if step[1] != "ok"]
+    other_owners(base, source)
+
+    for name, action, reason in steps:
+        if action == "ok" and args.quiet:
+            continue
+        note = "  (%s; the old copy goes to %s)" % (reason, tilde(base / "skills-backups")) if reason else ""
+        print("%-8s %s%s" % (action, name, note))
+
+    if args.check:
+        if changes:
+            print("%d skill(s) in %s differ from %s. Run scripts/sync-skills%s."
+                  % (len(changes), tilde(dest), origin, " --worktree" if args.worktree else ""))
+        return 1 if changes else 0
+    if args.dry_run:
+        print("Dry run: nothing written.")
+        return 0
+    if not changes and state_file.exists():
+        if not args.quiet:
+            print("All %d skills in %s match %s." % (len(steps), tilde(dest), origin))
+        return 0
+
+    saved = apply(steps, source, base, installed)
+    save_state(state_file, installed, origin)
+    print("Synced %d skill(s) from %s into %s." % (len(source), origin, tilde(dest)))
+    for kept in saved:
+        print("Backed up the old %s to %s." % (kept.name, tilde(kept)))
+    if args.worktree:
+        print("These are uncommitted. Run scripts/sync-skills to go back to HEAD.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,5 @@
+#!/bin/sh
+# After a rebase on main, sync the skills into ~/.claude/skills (see post-commit).
+# git passes "amend" or "rebase"; an amend already ran post-commit.
+[ "$1" = rebase ] || exit 0
+exec "$(dirname "$0")/post-commit"

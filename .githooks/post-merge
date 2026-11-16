@@ -1,0 +1,3 @@
+#!/bin/sh
+# After a merge or a pull on main, sync the skills into ~/.claude/skills (see post-commit).
+exec "$(dirname "$0")/post-commit"

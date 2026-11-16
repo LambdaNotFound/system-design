@@ -1,0 +1,18 @@
+#!/bin/sh
+# Installs the skills as committed into ~/.claude/skills (scripts/sync-skills),
+# so every project uses this repo's versions. Runs on main only: a skill being
+# reworked on a branch stays out of the other projects until it is merged.
+# post-merge and post-rewrite run this file too. It never fails the commit.
+
+[ "$(git symbolic-ref --quiet --short HEAD 2>/dev/null)" = main ] || exit 0
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "sync-skills hook: python3 not found, so ~/.claude/skills was not synced" >&2
+  exit 0
+fi
+
+root=$(git rev-parse --show-toplevel)
+if ! "$root/scripts/sync-skills" --quiet; then
+  echo "sync-skills hook: the sync failed, so ~/.claude/skills may be stale. Run scripts/sync-skills." >&2
+fi
+exit 0
