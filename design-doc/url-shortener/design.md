@@ -8,7 +8,7 @@
 
 ## Background
 
-People share links in text messages, print, QR codes and character-limited posts, where a long URL gets truncated or mistyped. Xu's reference shortener stores the long URL under a short code, redirects whoever opens it, and returns the existing code for a URL already shortened (FR3). The brief adds no loss on region failure, read-after-create everywhere, and bounded takedown.
+People share links in text messages, print, QR codes and character-limited posts, where a long URL gets truncated or mistyped. Xu's reference shortener stores the long URL under a short code, redirects whoever opens it, and returns the existing code for a URL already shortened (FR3).
 
 ## Terminologies
 
@@ -20,7 +20,7 @@ People share links in text messages, print, QR codes and character-limited posts
 
 ## Problem Statement
 
-A link must survive a region's loss once returned (NFR6), forcing a cross-region write before the reply, and resolve in every region at once (NFR11), while redirects answer within 100 ms at p99 (NFR3) and outlive creation failures (NFR4), which forbids a cross-region round trip per redirect. Equivalent URLs share one code under a race (FR3), 8-character codes stay unguessable at 365 billion links (NFR2, NFR8, NFR12), and a disable takes effect within 5 minutes (FR6).
+A returned link must survive a region's loss (NFR6), forcing a cross-region write before the reply, and resolve in every region at once (NFR11), while redirects answer within 100 ms at p99 (NFR3) and outlive creation failures (NFR4), forbidding a cross-region round trip per redirect. Equivalent URLs share one code under a race (FR3), 8-character codes stay unguessable at 365 billion links (NFR2, NFR8, NFR12), and a disable takes effect within 5 minutes (FR6).
 
 The forcing question is how to make a link durable across regions before it's returned, yet resolvable locally and consistently everywhere.
 
@@ -73,21 +73,20 @@ The forcing question is how to make a link durable across regions before it's re
 - **Code space.** 62^8 = 2.18 × 10^14 codes, 0.167% full at NFR2's 365 × 10^9 links: one live code in 598, so inserts rarely retry. Base36 would be 12.9% full (Appendix), a live link every 8 probes (NFR8), so base62 is forced.
 - **Storage (assumed).** At Xu's assumed 100 B URL, rows of 124 B and 40 B total 299 TB with 5 replicas, 3.85 PB at FR7's maximum (Appendix), so the store is range-sharded and the index keys on a 32 B hash.
 - **Disable budget.** FR6 allows 300 s. Replica staleness S + cache TTL T = 30 + 60 = 90 s for servers, plus browser `max-age` M = 60 s = 150 s, so expiry alone meets FR6.
-- **Headroom and step 4 load (assumed).** A drain moves a region's third onto two, raising each by half, so each region is sized for 116,000 / 2 = 58,000 redirects a second; at an 80% hit rate, 11,600 reach the store, against 1,280 that one server's step 4 confirms (Appendix). That fleet awaits Task 3's load test, so a slow replica drains the region.
-- **Availability budget.** NFR4's yearly budget holds 78 region drains at 40 s each (Appendix), which sets the fast checks and the 60 s TTL.
+- **Headroom and step 4 load (assumed).** A drain moves a region's third onto two, raising each by half, so each region is sized for 116,000 / 2 = 58,000 redirects a second; at an 80% hit rate, 11,600 reach the store, against 1,280 that one server's step 4 confirms (Appendix). Until Task 3 sizes that fleet, a slow replica drains the region.
 
 ## Proposed Solution
 
 ### Overview
 
-This RFC defines a three-region service that writes each link in one cross-region transaction before returning it, and answers each redirect from a server cache or the local replica, reading consistently only when that replica lacks the code. The store is CockroachDB, set to survive a region failure; codes are 8 random base62 characters. NFR3, NFR4 and NFR5 rest on hit rates, round trips and fleet sizes assumed until load-tested, and an enumeration from enough distinct IPs can fail fresh codes (Failure Modes).
+This RFC defines a three-region service that writes each link in one cross-region transaction before returning it, and answers each redirect from a server cache or the local replica, reading consistently only when that replica lacks the code. The store is CockroachDB, set to survive a region failure; codes are 8 random base62 characters. NFR3, NFR4 and NFR5 rest on figures assumed until load-tested; a wide botnet can fail fresh codes, and a cool-off cuts off a whole shared address or prefix for an hour (Failure Modes).
 
-*Diagram: three regions, each with an L4 load balancer, a stateless fleet (Redirect Resolver with cache, Create Handler, Admin API), a counter store and CockroachDB nodes of one 2+2+1 cluster, leaseholders home. Arrows: DNS to a healthy region; redirect to cache, local replica, then dashed to leaseholders; create committed across two regions; the Disable Tracker probing servers. Label S, T and M.*
+*Diagram: three regions, each with an L4 load balancer, a stateless fleet (Redirect Resolver with cache, Create Handler, Admin API), a counter store and CockroachDB nodes of one 2+2+1 cluster. Arrows: DNS to a healthy region; redirect to cache, local replica, then dashed to leaseholders; create committed across two regions; the Disable Tracker probing servers. Label S, T and M.*
 
 ### API
 
 - `POST /v1/links` `{"url"}` returns `201 {"code", "short_url"}`, or `200` with the existing code (FR3), so a retry is safe though charged to FR8 again. Rejections: `400` with `bad_scheme`, `invalid_url`, `too_long`, `own_domain`, `userinfo` or `disabled`; `429 rate_limited` with `Retry-After`; `503`.
-- `GET /{code}` returns `302` with `Location` and `Cache-Control: private, max-age=60` (FR2). Disabled is `410`, unknown `404`, both `no-store`; cool-off `429` (NFR8); unconfirmable `503`. Other paths are unknown codes; query strings are ignored.
+- `GET /{code}` returns `302` with `Location` and `Cache-Control: private, max-age=60` (FR2). Disabled is `410`, unknown `404`, both `no-store`; cool-off `429` (NFR8); unconfirmable or shed-limited `503`. Other paths are unknown codes; query strings are ignored.
 - `POST /admin/v1/links/{code}/disable` `{"reason"}`, on the internal admin host only, returns `disabled_at`, the first one on a repeat.
 - `GET /admin/v1/disables/{code}` returns `disabled_at` and `server_effective_at` (NFR9).
 
@@ -95,7 +94,7 @@ This RFC defines a three-region service that writes each link in one cross-regio
 
 ### Data model and storage
 
-Access patterns: a point read by code per redirect (116,000 a second at peak, mostly cached); per creation (11,600), a point read by URL key, then a read or two inserts atomic across ranges (FR3); rare disables, tracker scans and cool-off writes; each server's cool-off read every second.
+Access patterns: a point read by code per redirect (116,000 a second at peak, mostly cached); per creation (11,600), a point read by URL key, then a read or two inserts atomic across ranges (FR3); rare disables, tracker scans and cool-off writes, read by each server every second.
 
 ```sql
 CREATE TABLE links (
@@ -119,7 +118,7 @@ CREATE TABLE cooloffs (                 -- LOCALITY GLOBAL (Abuse Limiter, NFR8)
 );
 ```
 
-**MVP choice: CockroachDB in three regions, `SURVIVE REGION FAILURE`, `REGIONAL BY TABLE`.** Each requirement maps to a property:
+**MVP choice: CockroachDB in three regions, `SURVIVE REGION FAILURE`, `REGIONAL BY TABLE`,** because:
 
 - NFR6: 5 replicas placed 2+2+1, so 3-replica commits outlive any one region.
 - FR3: a transaction makes the two inserts atomic.
@@ -130,9 +129,9 @@ CREATE TABLE cooloffs (                 -- LOCALITY GLOBAL (Abuse Limiter, NFR8)
 
 ### Edge and client identity
 
-DNS latency records send clients to the nearest healthy region, with a 60 s TTL and health checks every 10 s, 3 failures to trip (Appendix). The L4 load balancer passes the peer address by PROXY protocol as the client IP for FR8 and NFR8, ignoring `X-Forwarded-For`.
+DNS latency records send clients to the nearest healthy region, with a 60 s TTL and health checks every 10 s, 3 failures to trip, so NFR4 holds 78 drains a year (Appendix). The L4 load balancer passes the peer address by PROXY protocol as FR8 and NFR8's client IP, ignoring `X-Forwarded-For`.
 
-No single IPv6 prefix is one caller: RIPE-690 gives a home a /56 and a business a /48, and a phone gets a /64 per connection (RFC 6459). So an IPv4 address is one **identity**, and an IPv6 address three, its /64, /56 and /48, limited at 1, 4 and 16 times the base. A /48 holder gets 16 times an IPv4 caller's quota, not 65,536; phones packed into one /56 share 4 times one caller's, IPv6's carrier-grade NAT.
+No single IPv6 prefix is one caller: RIPE-690 gives a home a /56 and a business a /48, and a phone gets a /64 per connection (RFC 6459). So an IPv4 address is one **identity**, and an IPv6 address three, its /64, /56 and /48, limited at 1, 4 and 16 times the base. A /48 holder gets 16 times an IPv4 caller's quota, not 65,536. The cost is IPv6's carrier-grade NAT: one prober's cool-off on a carrier's /56 or /48 rejects up to 256 or 65,536 phones' /64s for an hour, everywhere (Failure Modes).
 
 ### Canonicalizer
 
@@ -179,7 +178,7 @@ Phase 3, claim:   insert url_index[key] = fresh. Duplicate key or a serializatio
 Phase 4, commit:  3 of 5 replicas across two regions (NFR6), then New(fresh).
 ```
 
-The `url_index` primary key arbitrates the race: one transaction commits it and every other caller, in any region, reads its code. An aborted transaction leaves no rows, and the stored spelling is the winner's, FR2's creating request.
+An aborted transaction leaves no rows, and the stored spelling is the winner's, FR2's creating request.
 
 ```mermaid
 sequenceDiagram
@@ -218,21 +217,21 @@ pub trait LinkReader {
 
 ```text
 Step 1, guard:   not a code: 404, a miss. An identity in cool-off or past its
-                 regional miss limit: 429 (NFR8).
+                 regional miss limit: 429 (NFR8); past its shed limit: 503.
 Step 2, cache:   entry younger than T = 60 s: 302 or 410.
 Step 3, local:   read_local(code, S = 30 s), 20 ms timeout. Found: fill, answer.
-Step 4, confirm: absent, error or timeout: read_consistent(code), at most
-                 F = 64 in flight per server, of which IPs with a miss in their
-                 window share 16. Found: fill, answer. Absent: 404, a miss.
-                 Error, timeout or over the limit: 503, a miss if step 3
-                 found the code absent.
+Step 4, confirm: absent, error or timeout: read_consistent(code), 100 ms
+                 timeout, at most F = 64 in flight per server, of which IPs
+                 with a miss in their window share 16. Found: fill, answer.
+                 Absent: 404, a miss. Error, timeout or over the limit: 503,
+                 a shed if step 3 found the code absent.
 ```
 
 **Why each tier.** Single-flight fill limits a viral code to one store read per server per T. Step 3 keeps the common path in-region (NFR3) and off the write quorum (NFR4). Step 4 exists for NFR11: a code returned a moment ago may not be on this replica yet, so a local miss is never final or cached. It crosses regions, so NFR3 assumes steps 2 and 3 answer 99% of redirects.
 
 **Staleness (FR6).** An entry filled at t reflects the store at t − S or later and serves until t + T, and a browser keeps the `302` M more (Estimates). `private` keeps shared caches out, and `302`, unlike `301`, isn't cached heuristically.
 
-**Draining.** Each server's health endpoint fails when a step 3 read of a sentinel code fails or passes 20 ms, or over 5% of step 3 reads in 10 s time out, so the region drains rather than serve a disabled or unseen code (FR6, NFR11). Timeouts rise with load, and a drain adds half to each survivor's load, within their headroom (Estimates); if one trips anyway, Route 53 answers as if all records were healthy once none is: the undrained state.
+**Draining.** Each server's health endpoint fails when a step 3 read of a sentinel code fails or passes 20 ms, or over 5% of step 3 reads in 10 s time out, so the region drains rather than serve a disabled or unseen code (FR6, NFR11). A drain adds half to each survivor's load, within its headroom (Estimates); if survivors trip anyway, Route 53 treats all records as healthy once none is, the undrained state.
 
 ```mermaid
 sequenceDiagram
@@ -258,9 +257,11 @@ sequenceDiagram
 
 ### Abuse Limiter
 
-A regional in-memory counter store charges each identity per submission, `(identity, hour)`, rejected past 100 (FR8), and per miss, `(identity, 10 minutes)`, each limit times the identity's multiple. Step 1 reads the IP's miss counts in one round trip and rejects once any passes 50, whatever the probe rate; the server whose charge crosses it writes a 1-hour cool-off to `cooloffs`, a `GLOBAL` table every region reads consistently and locally. Servers read new rows every second, with a 5 s overlap for commit order, so a cool-off holds everywhere within seconds (NFR8). Step 4's 16 shared slots keep a repeating prober from crowding out fresh codes.
+A regional in-memory counter store charges each identity per submission, `(identity, hour)`, rejected past 100 (FR8), and per miss, `(identity, 10 minutes)`, each limit times the identity's multiple. Step 1 reads the IP's counts in one round trip and rejects once any passes its limit, overshooting by the lookups then in flight (Appendix); the server whose charge crosses it writes a 1-hour cool-off to `cooloffs`, a `GLOBAL` table every region reads consistently and locally. Servers read new rows every second, overlapping 5 s for commit order, so a cool-off holds everywhere within seconds (NFR8).
 
-Counting stays regional: a global counter puts a cross-region write on every miss (NFR3, NFR4); cool-offs start at most once per identity an hour, which suits `GLOBAL`'s slow writes, and a client in all three regions gets three times each limit (Appendix). If the counter store is down or past a 5 ms timeout, step 1 passes and servers count in process and alert; a failed cool-off write holds locally and retries, and a failed read keeps the last set. **Cons:** a counter read on every lookup, up to 5 ms of NFR3; an identity is one caller, so NAT and packed IPv6 users share a quota and a botnet multiplies it, a risk the scoping record accepted.
+**Sheds.** A shed of a locally absent code leaks what a `404` does, so it counts, apart from misses since the code may be fresh; past the limit, step 1 answers `503` regionally until the window ends, which NFR4 counts, with no cool-off (Appendix).
+
+Counting stays regional: a global counter puts a cross-region write on every miss (NFR3, NFR4); cool-offs start at most once per identity an hour, suiting `GLOBAL`'s slow writes; a client in all three regions gets three times each limit (Appendix). If the counter store is down or past a 5 ms timeout, step 1 passes and servers count in process and alert; a failed cool-off write holds locally and retries, and a failed read keeps the last set. **Cons:** a counter read on every lookup, up to 5 ms of NFR3; shared addresses and prefixes share limits, a risk the scoping record accepted; a botnet multiplies them.
 
 ### Disables
 
@@ -270,7 +271,7 @@ One transaction sets `links.disabled_at` and inserts the `disables` row (FR6), c
 
 ### Example
 
-At 09:00:00 a caller in region B submits `HTTPS://Example.com:443/a/../b`, stored as is with canonical form `https://example.com/b`; code `q7Xk2PzA` commits in regions A and B. At 09:00:01 region C's replica lacks it, step 4 finds it, and the `302` goes to `HTTPS://Example.com:443/a/../b`. Disabled at 10:00:00, it stops redirecting everywhere by 10:01:30, and a resubmission at 10:00:05 is rejected (FR9).
+At 09:00:00 a caller in region B submits `HTTPS://Example.com:443/a/../b`, stored as is with canonical form `https://example.com/b`; code `q7Xk2PzA` commits in regions A and B. At 09:00:01 region C's replica lacks it, so step 4 finds it and redirects to the stored spelling. Disabled at 10:00:00, it stops redirecting everywhere by 10:01:30; a resubmission at 10:00:05 fails (FR9).
 
 ## Alternatives Considered
 
@@ -292,20 +293,19 @@ At 09:00:00 a caller in region B submits `HTTPS://Example.com:443/a/../b`, store
 
 ## Failure Modes and Observability
 
-Six failure modes matter; metrics follow.
+Five failure modes matter; metrics follow.
 
 - **A region fails.** Each range keeps 3 of 5 replicas, so reads and writes continue (NFR6); DNS drains the region onto the survivors' headroom in about 90 s, and its leases move.
 - **A region is partitioned.** Past S it reads neither locally nor consistently, so uncached lookups get `503` until it drains, about 120 s (Appendix).
 - **Two regions fail.** Beyond NFR6: creation and disables stop, and redirects fail once caches expire and local reads pass S. The break-glass is a logged operator flag lifting S, suspending FR6 and NFR11.
-- **The store is slow.** A local replica past step 3's 20 ms drains its region (Draining). A slow leaseholder costs fresh and unknown codes only. Creation retries a timed-out transaction once, safe under FR3.
-- **A botnet enumerates.** IPs probing once per window look clean and share step 4's other 48 slots with fresh codes. Past 960 first-time misses a second on a server, about 576,000 distinct IPv4 addresses or IPv6 /48s per 10 minutes (Appendix), fresh codes there get `503`, each charged as a miss: a residual risk to NFR4 and NFR11, shown by step 4 rejections.
-- **The canonicalizer drifts.** A changed v1 splits keys, breaking FR3 silently; golden tests guard it (Canonicalizer).
+- **The store is slow.** A local replica past step 3's 20 ms drains its region (Draining). A slow leaseholder fails fresh and unknown codes with `503`, and a client shed past the limit loses that region until its window ends (Abuse Limiter). Creation retries a timed-out transaction once, safe under FR3.
+- **A botnet enumerates.** Clean IPs share step 4's other 48 slots with fresh codes. Past 960 first-time misses a second on a server, about 576,000 distinct IPv4 addresses or IPv6 /48s per 10 minutes (Appendix), fresh codes there get `503` and count as sheds: a residual risk to NFR4 and NFR11, shown by step 4 rejections.
 
 Metrics that track:
 
 - Redirect and creation latency by region and status, and availability (non-`5xx` over all), with burn-rate alerts at 99.99% and 99.9% (NFR3, NFR4, NFR5, NFR9).
 - Follower staleness, step 3 timeouts, step 4 rate and rejections over F, cache hit rate.
-- Misses, active cool-offs and counter-store fallback per region.
+- Misses, sheds, shed-limit `503`s, active cool-offs and counter-store fallback per region; lookups rejected per cool-off, paging when a /56 or /48 cool-off rejects over 16 /64s without misses, which NFR4's count hides.
 - `server_effective_at − disabled_at` per disable (NFR9); the tracker's heartbeat age, paging past 1 minute; `Integrity` aborts, which should be zero.
 
 Debug endpoints that:
@@ -315,7 +315,7 @@ Debug endpoints that:
 ## Open Questions
 
 1. **Which three regions?** Creation and step 4 latency scale with their round trips. Current design: assumed one continent. If wider, measure creation p99 first.
-2. **Are the limits and load figures right?** Current design: assumed 100 creations an hour, 50 misses in 10 minutes, multiples of 4 and 16 at /56 and /48, a 1-hour cool-off, F = 64 with 16 for IPs with misses, an 80% cache hit rate, 50 ms per step 4 read, regions sized for half the peak. If they block real users, raise them; the Appendix prices each.
+2. **Are the limits and load figures right?** Current design: assumed 100 creations an hour, 50 misses or sheds in 10 minutes, multiples of 4 and 16 at /56 and /48, a 1-hour cool-off, F = 64 with 16 for IPs with misses, an 80% cache hit rate, 50 ms per step 4 read, regions sized for half the peak. If they block real users, raise them; the Appendix prices each.
 3. **How do operators authenticate?** Current design: assumed existing single sign-on fronts the admin host. If none exists, the Admin API needs its own.
 4. **Does one cluster sustain 11,600 two-range transactions a second plus step 4?** Current design: assumed yes, scaled by nodes. If not, revisit the two-insert transaction first.
 
@@ -326,7 +326,7 @@ Debug endpoints that:
 | 1 | Canonicalizer | `canonicalize_v1` and its frozen golden tests (FR4, FR7, FR9, FR10). | none |
 | 2 | Link creation | Schema, the four-phase transaction, codes, a peak load test (FR1, FR3, FR5, NFR1, NFR2, NFR5, NFR6, NFR7, NFR8, NFR12). | Task 1, **CockroachDB cluster** (external, three regions) |
 | 3 | Redirect Resolver | Tiers, single-flight cache, bounded fallback, headers (FR2, FR6, NFR3, NFR4, NFR11). | Task 2 |
-| 4 | Abuse Limiter | Identities, counters, `cooloffs` and its pull, step 4 slot split, fallback (FR8, NFR8). | Task 3 |
+| 4 | Abuse Limiter | Identities, counters, shed limit, `cooloffs` and its pull, step 4 slot split, fallback (FR8, NFR8). | Task 3 |
 | 5 | Disables | Admin API, disable transaction, internal lookup, tracker (FR6, FR9, NFR9). | Task 3 |
 | 6 | Deployment | DNS health checks, the health endpoint, PROXY protocol, the fixed domain (NFR4, NFR10). | Task 3 |
 | 7 | Metrics and alerts | The metrics and alerts above (NFR9). | Tasks 3, 4, 5 |
@@ -346,7 +346,7 @@ base62    2.18 × 10^14    0.167%         598 probes
 
 **Availability per region drain.** NFR4's 99.99%: 0.0001 × 31,536,000 s = 3,154 s of failed lookups a year, counted per lookup as NFR4's NFR8 clause implies. A partitioned region: up to S = 30 s before its reads fail, then 10 s × 3 health checks to detect, then a 60 s DNS TTL to drain = 120 s; a hard region failure skips S, 90 s. At a third of the traffic, 120 / 3 = 40 s an event, 3,154 / 40 = 78 a year (assumed: regions split traffic evenly and clients honor the TTL).
 
-**Enumeration under the limits.** Step 1 rejects an identity once its regional count passes the limit, so a region answers 50 of its misses per cycle plus the lookups in flight when the 50th lands, r × ℓ: 10 at an assumed r = 1,000 probes a second and ℓ = 10 ms. A fast prober's cycle is the 1-hour cool-off: 3 × (50 + 10) = 180 probes an hour, 4,320 a day, 7.2 live codes a day at 1 in 598 for an IPv4 address or a lone /64. A /48 holder at 16 times: 3 × (800 + 10) × 24 = 58,320 probes, 97.5 live codes a day.
+**Enumeration under the limits.** Step 1 rejects an identity once its regional count passes the limit, so a region answers 50 of its misses per cycle plus the lookups in flight when the 50th is charged, at the end of step 4. That overshoot is min(r × ℓ, 16n + r × 20 ms) on the n servers a prober reaches, since a dirty identity holds at most 16 step 4 slots a server and the rest wait in step 3. At an assumed r = 1,000 probes a second and ℓ = 20 ms (step 3) + 50 ms (step 4) = 70 ms, it is 70 once n ≥ 4, rising with r and the fleet. A fast prober's cycle is the 1-hour cool-off: 3 × (50 + 70) = 360 probes an hour, 8,640 a day, 14.4 live codes a day at 1 in 598 for an IPv4 address or a lone /64. A /48 holder at 16 times: 3 × (800 + 70) × 24 = 62,640 probes, 104.7 live codes a day. Through a step 4 outage in one region, the shed limit binds there instead, with the 10-minute window as the cycle and ℓ up to 20 + 100 ms (step 4's timeout): 50 + 120 = 170 probes a window, 1,020 an hour, 1.7 live codes an hour for the outage's length.
 
 **Step 4 capacity (assumed).** At an assumed 50 ms a consistent read, F = 64 slots confirm 64 / 0.05 = 1,280 a second per server.
 
@@ -404,15 +404,16 @@ base62    2.18 × 10^14    0.167%         598 probes
 | Steps 2 and 3 serve at least 99% of redirects within 100 ms | none yet; measure with the latency histogram and cache hit rate under load after Task 3 | assumed |
 | Creation transaction completes well under 1 s at p99 across three same-continent regions | none yet; load test in Task 2 | assumed |
 | One cluster sustains 11,600 two-range transactions a second | none yet; load test in Task 2 | assumed |
-| Step 1's read of the regional miss counts caps a region's answered misses per identity per cycle at the limit plus the lookups in flight when it is crossed, whatever the probe rate; a step 4 shed of a locally absent code counts as a miss, so shedding can't hide probes | from step 1 and step 4 as specified; counts charged synchronously on each miss | inferred |
-| A prober has at most r × ℓ = 1,000 probes a second × 10 ms = 10 lookups in flight when it crosses the limit | none yet; r and ℓ are assumed; measure step 1 to answer latency after Task 3 | assumed |
-| Enumeration yield of 7.2 live codes a day for an IPv4 address or lone /64, 97.5 for a /48 holder | Appendix arithmetic: 3 × (50 + 10) × 24 / 598 and 3 × (800 + 10) × 24 / 598, a fast prober's cycle being the 1-hour cool-off; assumed limits and NFR2 density | assumed |
+| Step 1's read of the regional counts caps a region's answered misses, and separately its sheds, per identity at the limit plus the lookups in flight when it is crossed; a shed of a locally absent code counts apart from misses, so shedding can't hide probes, and past the limit it draws a regional `503` until the window ends, not a cool-off | from step 1, step 4 and Sheds as specified; each count charged when its lookup ends | inferred |
+| The overshoot is min(r × ℓ, 16n + r × 20 ms), since a dirty identity holds at most 16 step 4 slots on each of n servers: 70 at r = 1,000 probes a second, ℓ = 20 ms (step 3 timeout) + 50 ms (step 4 read) and n ≥ 4, up to 120 for sheds at step 4's 100 ms timeout; it grows with r and n | step 3 and step 4 as specified; r, the 50 ms read and n are assumed; measure step 1 to charge latency after Task 3 | assumed |
+| Enumeration yield of 14.4 live codes a day for an IPv4 address or lone /64, 104.7 for a /48 holder, and 1.7 an hour in a region with no working step 4 | Appendix arithmetic: 3 × (50 + 70) × 24 / 598, 3 × (800 + 70) × 24 / 598, and 6 × (50 + 120) / 598, a fast prober's cycle being the 1-hour cool-off, or the 10-minute window under the shed limit; python run this session; assumed limits and NFR2 density | assumed |
 | RIPE-690 recommends a /48 per business and a /56 per residential customer, strongly discourages assigning longer than /56, says a /64 or longer does not conform to IPv6 standards, and names a single /64 per PDP context for cellular phones | RIPE NCC, "RIPE-690: Best Current Operational Practice for Operators: IPv6 prefix assignment for end-users", https://www.ripe.net/publications/docs/ripe-690/, §1, §4.2.2 to §4.2.4, read 11/16/26 | observed |
 | A 3GPP network gives each UE's default bearer a unique /64 prefix | RFC 6459, "IPv6 in 3GPP EPS", §3.2, §4.2, §5.2, https://www.rfc-editor.org/rfc/rfc6459, read 11/16/26 | observed |
 | Counting IPv6 at /64, /56 and /48 with 1, 4 and 16 times the base gives one /48 holder 16 times an IPv4 caller's quota, against 65,536 times at /64 alone (2^(64 − 48)) | the two rows above; multiples are design choices | inferred |
-| Carriers place many phones' /64s inside one /56 or /48, so they share the wider prefix's quota | RFC 6459 (row above) gives a /64 per UE; how carriers lay those out within a /56 or /48 was not read this session; measure from traffic per prefix after Task 4 | assumed |
+| A cool-off on a /56 or /48 rejects up to 2^(64 − 56) = 256 or 2^(64 − 48) = 65,536 /64s, each a phone's whole prefix under RFC 6459, for the 1-hour cool-off in every region, and NFR4 counts those rejections as available | RFC 6459 row above, the identity rule and NFR4's NFR8 clause | inferred |
+| Carriers place many phones' /64s inside one /56 or /48, so they share the wider prefix's quota and cool-off | RFC 6459 (row above) gives a /64 per UE; how carriers lay those out within a /56 or /48 was not read this session; measure from traffic per prefix after Task 4 | assumed |
 | DNS latency records with health checks route to a healthy region, and treat all records as healthy when none is, the floor of a drain cascade | AWS, "How Amazon Route 53 chooses records when health checking is configured", https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/health-checks-how-route-53-chooses-records.html, read 11/15/26 | observed |
-| Limits and timeouts: 100 creations/h, 50 misses per 10 min, multiples of 4 and 16 at /56 and /48, 1 h cool-off, F = 64 with 16 slots for IPs with misses, step 3 timeout 20 ms, counter store timeout 5 ms, health endpoint failing on a sentinel read past 20 ms or at 5% step 3 timeouts in 10 s, 5 s cool-off read overlap, tracker heartbeat page at 1 min | design choices under FR8 and NFR8's (assumed) tags; none yet, tune from Task 3 and 4 load tests | assumed |
+| Limits and timeouts: 100 creations/h, 50 misses per 10 min, multiples of 4 and 16 at /56 and /48, 1 h cool-off, F = 64 with 16 slots for IPs with misses, step 3 timeout 20 ms, step 4 timeout 100 ms, a shed limit equal to the miss limit, a page past 16 /64s without misses rejected under one /56 or /48 cool-off, counter store timeout 5 ms, health endpoint failing on a sentinel read past 20 ms or at 5% step 3 timeouts in 10 s, 5 s cool-off read overlap, tracker heartbeat page at 1 min | design choices under FR8 and NFR8's (assumed) tags; none yet, tune from Task 3 and 4 load tests | assumed |
 | Two concurrent transactions inserting the same primary key end with one commit and the other a duplicate-key or retryable serialization error | memory of CockroachDB's transaction model, not read this session; settle with a concurrency test in Task 2 | assumed |
 | Codes are case-sensitive base62 in the URL path, so a mis-cased code is a different code | NFR12 and the code-space bullet; consequence for print and QR readers is accepted | inferred |
 | Route 53 health checks run every 10 s or 30 s; the failure threshold is the number of consecutive checks that flips status; an endpoint is unhealthy when 18% or fewer checkers report healthy | AWS, "How Amazon Route 53 determines whether a health check is healthy", https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-determining-health-of-endpoints.html, and "Values that you specify when you create or update health checks", https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/health-checks-creating-values.html, read 11/16/26 | observed |
@@ -431,6 +432,7 @@ base62    2.18 × 10^14    0.167%         598 probes
 - R0: first draft.
 - R1: cool-off made service-wide through a `GLOBAL` `cooloffs` table; step 4 slots split; health endpoint drains on slow replicas; availability and step 4 arithmetic added; DynamoDB and keyed-permutation rivals restated; ToASCII scoped to non-ASCII hosts; repetition cut; tracker heartbeat metric.
 - R2: step 1 rejects on the regional miss count, and step 4 sheds of locally absent codes count as misses; IPv6 counted at /64, /56 and /48 with multiples 1, 4, 16 (RIPE-690, RFC 6459); regions sized for half the peak, sentinel read timed, Route 53 fail-open named as the cascade floor; Appendix yield and botnet figures redone; Estimates availability bullet cut to a pointer; push invalidation moved to Appendix minor rivals; trims to fit 4,000 words.
+- R3: overshoot input ℓ taken from steps 3 and 4 (70 ms) and capped at min(r × ℓ, 16n + r × 20 ms), yields redone (14.4 and 104.7 a day); step 4 given a 100 ms timeout; sheds counted apart from misses, with a regional `503` until the window ends instead of a cool-off; prefix cool-off blast radius stated with a paging metric; step 1 wording fixed to "its limit"; Estimates availability pointer moved to Edge, canonicalizer-drift bullet cut as a repeat of Versioning, trims across Background, Problem Statement, Overview, Link Creation, Abuse Limiter and Failure Modes to fit 4,000 words.
 
 ## Objection responses
 
@@ -452,3 +454,10 @@ base62    2.18 × 10^14    0.167%         598 probes
 - R2-2 | accepted. The /64 premise was wrong: RIPE-690 (read 11/16/26) recommends a /56 per home and a /48 per business and says a /64 or longer does not conform, while RFC 6459 (read 11/16/26) gives a phone a /64 per connection, so no single prefix length is one caller. An IPv6 address now counts as three identities, its /64, /56 and /48, limited at 1, 4 and 16 times the base for both FR8 and the miss count, and a limit or cool-off on any of them applies (Edge and client identity, Abuse Limiter, `cooloffs.identity`). A /48 holder gets 16 times an IPv4 caller's quota instead of 65,536 times; the shared-quota cost is that phones a carrier packs into one /56 share 4 times one caller's quota, stated as IPv6's carrier-grade NAT and left assumed in Evidence. Appendix: a /48 holder's yield is 97.5 live codes a day; the wide-botnet threshold is now 576,000 distinct IPv4 addresses or IPv6 /48s, since a /48's first miss dirties every address in it. No brief correction: FR8 and NFR8 say "client IP", and scoping left IPv6 handling to the design.
 - R2-3 | accepted. Estimates now sizes each region for half the peak, 58,000 redirects a second, 1.5 times its share, so one drain leaves the survivors within capacity (assumed until Task 3's load test). The sentinel read now fails past the same 20 ms, so a slow replica stays drained with no traffic, while a load-induced trip clears when its load leaves. The cascade floor is named: if survivors trip anyway, Route 53 treats every record as healthy once none is (Evidence, observed 11/15/26), which is the undrained state (Redirect Resolver, Draining; Failure Modes).
 - R2-4 | accepted. The Estimates availability bullet now carries only the result and a pointer, with the arithmetic in the Appendix alone. Further cuts to fit R2-1 to R2-3: push invalidation moved to the Appendix's minor rivals, the partition sentence folded into its Failure Modes bullet, and tightening across Estimates, Overview and Alternatives. Word count 4,000 of 4,000.
+
+### Round 3
+
+- R3-1 | accepted. ℓ now comes from the path a miss takes before it is charged: step 3's 20 ms timeout plus an assumed 50 ms step 4 read, 70 ms; step 4 now has a stated 100 ms timeout, so a shed's ℓ is at most 120 ms. The overshoot is min(r × ℓ, 16n + r × 20 ms), slightly tighter than the suggested min(r × ℓ, 16n), since lookups still in step 3 aren't held by step 4's slots: 70 at r = 1,000 once n ≥ 4, and it grows with r and the fleet. Yields redone: 3 × (50 + 70) × 24 / 598 = 14.4 live codes a day for an IPv4 address or lone /64, 3 × (800 + 70) × 24 / 598 = 104.7 for a /48 holder (Appendix, Evidence). "Whatever the probe rate" is gone from the Abuse Limiter.
+- R3-2 | accepted, narrowed rather than only stated. A shed of a locally absent code still counts, since a `503` leaks "absent locally" as a `404` does, but it counts apart from misses: past the limit in sheds, step 1 answers `503` in that region until the 10-minute window ends, and no cool-off starts (Abuse Limiter, Sheds; step 1 sketch). A legitimate client opening fresh codes through a slow leaseholder, a pre-S partition or a botnet loses at most one window of that region's redirects, counted against NFR4 so burn-rate alerts see it, rather than an hour everywhere that NFR4 hides; the slow-store and botnet bullets now say so, and "costs fresh and unknown codes only" is gone. The probe bound holds: R2-1's prober that fills the 16 shared slots is stopped at the shed limit, and in a region with no working step 4 its cycle shrinks to the window, 6 × (50 + 120) / 598 = 1.7 live codes an hour for the outage's length (Appendix). The bar-raiser's other narrowing, charging sheds only after a confirmed miss, was rejected: a prober that never gets a `404` (every step 4 read shed during an outage) would then probe step 3 uncounted for the outage's length, which reopens R2-1. Shed-limit `503`s are a metric.
+- R3-3 | accepted, as a stated cost with a trigger, not a narrowing. Edge and client identity now states the blast radius: one prober's cool-off on a carrier's /56 or /48 rejects up to 256 or 65,536 phones' /64s for an hour, in every region; the Overview caveat carries it. Metrics count lookups rejected per cool-off and page when a /56 or /48 cool-off rejects over 16 /64s without misses of their own, since NFR4's count hides them. Narrowing was weighed and rejected: if a wider-prefix cool-off spared /64s with no misses, a /48 holder rotating /64s would get each fresh /64's own limit, up to 65,536 × 50 misses an hour against the 800 the /48 limit allows, which gives up the rotation bound R2-2 added. The page threshold of 16 is assumed (Evidence limits row).
+- R3-4 | accepted. The Abuse Limiter now reads "rejects once any passes its limit".
