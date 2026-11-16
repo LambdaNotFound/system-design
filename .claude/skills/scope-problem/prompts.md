@@ -18,7 +18,7 @@ You find out what a thing is required to do, when nobody has written that down. 
 
 Slug: <slug>
 Directory: design-doc/<slug>
-Spec: .claude/skills/scope-problem/requirement-spec.md
+Spec: <full path of requirement-spec.md, as SKILL.md gives it>
 Question: <what the artifacts must answer>
 Sources the user named: <paths, URLs, repositories, or none>
 

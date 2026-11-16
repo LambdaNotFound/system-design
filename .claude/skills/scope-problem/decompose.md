@@ -14,5 +14,5 @@ The usual shape is one design piece. `/implement-design` later picks the mechani
 
 Confirm the pieces, routes and handoffs with the user: they are cheap to fix now and expensive after sign-off. Then write the record's Decomposition table. A piece without a slug, a route, and a handoff is not decomposed yet.
 
-- **One piece:** its slug is the bare `<slug>`. Set the doc's `Route:` to its route.
+- **One piece:** its slug is the bare `<slug>`. Set the doc's `Route:` to its route. Its Serves column reads `all`, with no ID range, so a row added later cannot leave it stale.
 - **Several pieces:** each piece is a sub-system in its own right, with the slug `<slug>-<piece>`. A piece slug must not match a slug already used in `design-doc/`, `concepts/` or `src/`. Set the parent doc's `Route:` to `decomposed`, and write each piece's doc now, `design-doc/<slug>-<piece>/requirement.md`, with the piece-doc header lines the spec defines and the rows it serves, numbered from 1. A piece doc stands alone: an agent downstream never opens the parent to understand its job. If the decomposition changes later, remove the docs of pieces that no longer exist.

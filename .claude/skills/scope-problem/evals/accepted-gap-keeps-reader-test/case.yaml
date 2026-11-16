@@ -7,5 +7,7 @@ expected_outcome: |
   test the new row, without dispatching the phase 5 reader again.
   Regression: accepting a gap in the sweep used to delete Reader test and rerun phase 5, and every
   fresh reader found new gaps, so the sweep never converged (url-shortener, 11/15/26).
+  Regression: a row the sweep added never reached the Decomposition table, so its Serves column
+  went stale (url-shortener, 11/15/26).
 context:
   scaffold_script: place-files.sh

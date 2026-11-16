@@ -22,7 +22,7 @@ Read each one when its line says to:
 
 - [requirement-spec.md](requirement-spec.md): the layout and rules of the requirement doc and the scoping record, with the record's template. Read it before you create either file. If it is missing, stop and tell the user where it should be.
 - [interview.md](interview.md): how to run the phase 3 rounds, and the twelve things that must be settled before the doc is written. Read it at the start of phase 3.
-- [prompts.md](prompts.md): the subagent prompts and how to dispatch them. Read it before any dispatch.
+- [prompts.md](prompts.md): the subagent prompts and how to dispatch them. Read it before any dispatch. A subagent cannot resolve these links, so give it the spec as `${CLAUDE_SKILL_DIR}/requirement-spec.md`.
 - [decompose.md](decompose.md): phase 4, the routes and the piece docs. Read it at the start of phase 4.
 - [sign-off.md](sign-off.md): phases 5 and 6 in full, and the prose voice. Read it at the start of phase 5.
 
