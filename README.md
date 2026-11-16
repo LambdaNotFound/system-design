@@ -6,7 +6,7 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 
 | System | Status | Started | Code |
 |---|---|---|---|
-| [URL Shortener](design-doc/url-shortener/) | Drafting | 11/15/26 | — |
+| [URL Shortener](design-doc/url-shortener/rfc.md) | Reviewed | 11/15/26 | — |
 
 **Status:** Scoping → Scoped (requirements settled) → Drafting (the design loop is running) → Reviewed (the bar-raiser approved, or you accepted what it left open) → Implemented (core mechanism built and tested)
 

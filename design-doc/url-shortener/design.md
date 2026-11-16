@@ -20,7 +20,7 @@ People share links in text messages, print, QR codes and character-limited posts
 
 ## Problem Statement
 
-A returned link must survive a region's loss (NFR6), forcing a cross-region write before the reply, and resolve in every region at once (NFR11), while redirects answer within 100 ms at p99 (NFR3) and outlive creation failures (NFR4), forbidding a cross-region round trip per redirect. Equivalent URLs share one code under a race (FR3), 8-character codes stay unguessable at 365 billion links (NFR2, NFR8, NFR12), and a disable takes effect within 5 minutes (FR6).
+A returned link must survive a region's loss (NFR6), forcing a cross-region write before the reply, and resolve in every region at once (NFR11). Redirects answer within 100 ms at p99 (NFR3) and outlive creation failures (NFR4), forbidding a cross-region round trip per redirect. Equivalent URLs share one code under a race (FR3), 8-character codes stay unguessable at 365 billion links (NFR2, NFR8, NFR12), and a disable takes effect within 5 minutes (FR6).
 
 The forcing question is how to make a link durable across regions before it's returned, yet resolvable locally and consistently everywhere.
 
@@ -73,13 +73,13 @@ The forcing question is how to make a link durable across regions before it's re
 - **Code space.** 62^8 = 2.18 × 10^14 codes, 0.167% full at NFR2's 365 × 10^9 links: one live code in 598, so inserts rarely retry. Base36 would be 12.9% full (Appendix), a live link every 8 probes (NFR8), so base62 is forced.
 - **Storage (assumed).** At Xu's assumed 100 B URL, rows of 124 B and 40 B total 299 TB with 5 replicas, 3.85 PB at FR7's maximum (Appendix), so the store is range-sharded and the index keys on a 32 B hash.
 - **Disable budget.** FR6 allows 300 s. Replica staleness S + cache TTL T = 30 + 60 = 90 s for servers, plus browser `max-age` M = 60 s = 150 s, so expiry alone meets FR6.
-- **Headroom and step 4 load (assumed).** A drain moves a region's third onto two, raising each by half, so each region is sized for 116,000 / 2 = 58,000 redirects a second; at an 80% hit rate, 11,600 reach the store, against 1,280 that one server's step 4 confirms (Appendix), so a slow replica drains the region (Draining).
+- **Headroom and step 4 load (assumed).** A drain moves a region's third onto two, raising each by half, so each region is sized for 116,000 / 2 = 58,000 redirects a second. At an 80% hit rate, 11,600 reach the store, against 1,280 that one server's step 4 confirms (Appendix), so a slow replica drains the region (Draining).
 
 ## Proposed Solution
 
 ### Overview
 
-This RFC defines a three-region service that writes each link in one cross-region transaction before returning it, and answers each redirect from a server cache or the local replica, reading consistently only when that replica lacks the code. The store is CockroachDB, set to survive a region failure; codes are 8 random base62 characters. NFR3, NFR4 and NFR5 rest on figures assumed until load-tested; a wide botnet can fail fresh codes, and one prober can cut off a shared address or prefix for an hour, or, in a region whose step 4 fails, for a window (Abuse Limiter).
+This RFC defines a three-region service that writes each link in one cross-region transaction before returning it, and answers each redirect from a server cache or the local replica, reading consistently only when that replica lacks the code. The store is CockroachDB, set to survive a region failure; codes are 8 random base62 characters. NFR3, NFR4 and NFR5 rest on figures assumed until load-tested. A wide botnet can fail fresh codes, and one prober can cut off a shared address or prefix for an hour, or for a window in a region whose step 4 fails (Abuse Limiter).
 
 *Diagram: three regions, each with an L4 load balancer, a stateless fleet (Redirect Resolver with cache, Create Handler, Admin API), a counter store and CockroachDB nodes of one 2+2+1 cluster. Arrows: DNS to a healthy region; redirect to cache, local replica, then dashed to leaseholders; create committed across two regions; the Disable Tracker probing servers. Label S, T and M.*
 
@@ -260,15 +260,15 @@ sequenceDiagram
 
 A regional in-memory counter store charges each identity per submission, `(identity, hour)`, rejected past 100 (FR8), and per miss, `(identity, 10 minutes)`, each limit times the identity's multiple. Step 1 reads the IP's counts in one round trip and rejects once any passes its limit, overshooting by the lookups then in flight (Appendix); the server whose charge crosses it writes a 1-hour cool-off to `cooloffs`, a `GLOBAL` table every region reads consistently and locally. Servers read new rows every second, overlapping 5 s for commit order, so a cool-off holds everywhere within seconds (NFR8).
 
-**Sheds.** A shed of a locally absent code leaks what a `404` does, so it counts, as a miss once the identity has one in the window: step 4 is then answering it, so a prober outrunning its slots is cooled off. With no miss, as in a step 4 outage, the code may be fresh: past the limit, step 1 answers `503` in that region until the window ends, which NFR4 counts, with no cool-off, and an attacker can force that on a shared prefix (Appendix).
+**Sheds.** A shed of a locally absent code leaks what a `404` does, so it counts. Once the identity has a miss in the window, it counts as one: step 4 is then answering the identity, so a prober outrunning its slots is cooled off. With no miss, as in a step 4 outage, the code may be fresh: past the limit, step 1 answers `503` in that region until the window ends, with no cool-off. NFR4 counts those `503`s, and an attacker can force them on a shared prefix (Appendix).
 
-Counting stays regional: a global counter puts a cross-region write on every miss (NFR3, NFR4); cool-offs start at most once per identity an hour, suiting `GLOBAL`'s slow writes; a client in all three regions gets three times each limit (Appendix). If the counter store is down or past a 5 ms timeout, step 1 passes and servers count in process and alert; a failed cool-off write holds locally and retries, and a failed read keeps the last set. **Cons:** a counter read on every lookup, up to 5 ms of NFR3; shared addresses and prefixes share limits, a risk the scoping record accepted.
+Counting stays regional: a global counter puts a cross-region write on every miss (NFR3, NFR4). So a client in all three regions gets three times each limit (Appendix). Cool-offs, at most one per identity an hour, suit `GLOBAL`'s slow writes. If the counter store is down or past a 5 ms timeout, step 1 passes and servers count in process and alert; a failed cool-off write holds locally and retries, and a failed read keeps the last set. **Cons:** a counter read on every lookup, up to 5 ms of NFR3; shared addresses and prefixes share limits, a risk the scoping record accepted.
 
 ### Disables
 
 One transaction sets `links.disabled_at` and inserts the `disables` row (FR6), committed like a creation (NFR6); the next creation for that URL reads it in Phase 1 and is rejected (FR9).
 
-**Disable Tracker (NFR9).** Every 5 s, for each disable lacking `server_effective_at`, a singleton job calls every serving server's debug lookup and records the time when all answer `410`; the browser tail M is computed, not observed. A disable not in effect within 90 s pages an operator.
+**Disable Tracker (NFR9).** Every 5 s, for each disable lacking `server_effective_at`, a singleton job calls every serving server's debug lookup and records when all answer `410`; the browser tail M is computed, not observed. A disable not in effect within 90 s pages an operator.
 
 ### Example
 
@@ -298,7 +298,7 @@ Five failure modes matter; metrics follow.
 
 - **A region fails.** Each range keeps 3 of 5 replicas, so reads and writes continue (NFR6); DNS drains the region onto the survivors in about 90 s, and its leases move.
 - **A region is partitioned.** Past S it reads neither locally nor consistently: uncached lookups get `503` until it drains, about 120 s (Appendix).
-- **Two regions fail.** Beyond NFR6: creation and disables stop, and redirects fail once caches expire and local reads pass S. The break-glass is a logged operator flag lifting S, suspending FR6 and NFR11.
+- **Two regions fail.** Beyond NFR6: creation and disables stop, and redirects fail once caches expire and local reads pass S. The break-glass, a logged operator flag, lifts S, suspending FR6 and NFR11.
 - **The store is slow.** A local replica past step 3's 20 ms drains its region (Draining). A slow leaseholder fails fresh and unknown codes with `503`; a client shed past the limit loses that region until its window ends, or, with a miss of its own, gets the hour's cool-off (Abuse Limiter). Creation retries a timed-out transaction once, safe under FR3.
 - **A botnet enumerates.** Clean IPs share step 4's other 48 slots with fresh codes. Past 960 first-time misses a second on a server, 576,000 identities per 10 minutes (Appendix), fresh codes there get `503` and count as sheds: a residual risk to NFR4 and NFR11, shown by step 4 rejections.
 
@@ -439,6 +439,7 @@ base62    2.18 × 10^14    0.167%         598 probes
 - R2: step 1 rejects on the regional miss count, and step 4 sheds of locally absent codes count as misses; IPv6 counted at /64, /56 and /48 with multiples 1, 4, 16 (RIPE-690, RFC 6459); regions sized for half the peak, sentinel read timed, Route 53 fail-open named as the cascade floor; Appendix yield and botnet figures redone; Estimates availability bullet cut to a pointer; push invalidation moved to Appendix minor rivals; trims to fit 4,000 words.
 - R3: overshoot input ℓ taken from steps 3 and 4 (70 ms) and capped at min(r × ℓ, 16n + r × 20 ms), yields redone (14.4 and 104.7 a day); step 4 given a 100 ms timeout; sheds counted apart from misses, with a regional `503` until the window ends instead of a cool-off; prefix cool-off blast radius stated with a paging metric; step 1 wording fixed to "its limit"; Estimates availability pointer moved to Edge, canonicalizer-drift bullet cut as a repeat of Versioning, trims across Background, Problem Statement, Overview, Link Creation, Abuse Limiter and Failure Modes to fit 4,000 words.
 - R4: sheds count as misses once an identity has a miss in the window, so a prober outrunning its own step 4 slots reaches the cool-off; the shed limit alone binds only when step 4 never answers the identity (step 1 sketch, Abuse Limiter Sheds); slow-store bullet, Overview caveat and a metric for cool-offs started mostly by sheds added; Appendix shed sentence and overshoot wording corrected, and a shed-limit cost on shared prefixes priced against NFR4; trims across Background, Estimates, Canonicalizer, Draining, Failure Modes and Metrics to fit 4,000 words.
+- editorial: adopted
 
 ## Objection responses
 
