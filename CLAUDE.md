@@ -5,7 +5,7 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 ## Layout
 
 ```
-.claude/skills/     scope-problem · new-design · review-design · implement-design
+.claude/skills/     scope-problem · new-design · review-design · implement-design · draw-diagram
 .githooks/          commit-msg checks the commit format; prepare-commit-msg adds the date;
                     pre-commit lints the skills
 evals/              shared fixtures and routing cases for the skill evals; each skill's own

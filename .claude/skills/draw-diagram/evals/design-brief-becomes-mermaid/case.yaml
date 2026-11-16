@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: design-brief-becomes-mermaid
+expected_outcome: |
+  The design loop is closed and rfc.md carries a *Diagram: line. The skill draws what that line
+  says as a Mermaid block in the named file under diagrams/, and leaves the RFC as it was.
+context:
+  scaffold_script: place-files.sh

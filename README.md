@@ -33,6 +33,7 @@ src/              Rust workspace, one crate per system or concept
 | Design | `/new-design <system>` | An agent loop writes a formal RFC from the requirement doc: an investigator drafts, a bar-raiser challenges it in rounds, an auditor tightens the prose |
 | Review | `/review-design <system or path> [focus: …]` | On demand: a fresh bar-raiser critiques the design, or any design doc, with an optional focus area |
 | Build | `/implement-design <system>` | An agent loop builds the core mechanism as a Rust crate: a coding expert plans it and you approve the plan, it writes failing tests that a bar-raiser reviews, then the logic, reviewed again. You read the result by hand |
+| Draw | `/draw-diagram <what to draw, system or path> [format: …] [out: …]` | On demand: Claude writes a diagram as Excalidraw JSON or a Mermaid block, from a prompt, a design or a concept note. It renders nothing and never edits a design; you open the file and export the picture |
 
 The skills have their own tests: `scripts/check-skills` lints them and `scripts/eval-skills` runs their eval cases. See [evals/](evals/).
 

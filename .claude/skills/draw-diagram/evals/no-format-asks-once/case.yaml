@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: no-format-asks-once
+expected_outcome: |
+  The request names what to draw but no format. The skill asks one question, Excalidraw or
+  Mermaid, with a recommendation, and writes nothing until it is answered.
+context:
+  scaffold_script: place-files.sh

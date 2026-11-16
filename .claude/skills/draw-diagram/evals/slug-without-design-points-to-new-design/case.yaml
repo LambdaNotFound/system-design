@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: slug-without-design-points-to-new-design
+expected_outcome: |
+  The rate-limiter folder holds a signed requirement doc and no design. The skill says there is
+  no design to draw yet, points to /new-design, and writes nothing.
+context:
+  scaffold_script: place-files.sh

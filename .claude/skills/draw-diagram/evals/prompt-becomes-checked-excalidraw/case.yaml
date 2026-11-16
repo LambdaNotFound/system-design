@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: prompt-becomes-checked-excalidraw
+expected_outcome: |
+  A small prompt with a format and a path. The skill writes Excalidraw JSON to that path, runs
+  the check script on it until it reports no errors, and says it saw no render.
+context:
+  scaffold_script: place-files.sh
