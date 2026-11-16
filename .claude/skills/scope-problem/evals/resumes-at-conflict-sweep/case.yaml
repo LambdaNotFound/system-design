@@ -6,6 +6,6 @@ expected_outcome: |
   sweep, and puts the clash it finds to the user instead of resolving it.
   Regression: a decided conflict in the table used to make a resume skip the sweep.
   Regression: the sweep used to add a missing requirement row (the F4 Redis constraint, as LLD1)
-  on its own, without the user's say and without rerunning the reader test on the new text.
+  on its own, without the user's say and without a fresh read of the new text.
 context:
   scaffold_script: place-files.sh

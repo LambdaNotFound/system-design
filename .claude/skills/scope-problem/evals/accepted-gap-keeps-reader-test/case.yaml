@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: accepted-gap-keeps-reader-test
+expected_outcome: |
+  The record has every progress line up to Reader test and no Swept line. The prompt decides the
+  planted NFR3/NFR4 clash and accepts the F4 Redis gap. The skill applies both, adds the LLD1 row,
+  keeps the Reader test line, and says the final check (phase 6, step 4) is the fresh read that will
+  test the new row, without dispatching the phase 5 reader again.
+  Regression: accepting a gap in the sweep used to delete Reader test and rerun phase 5, and every
+  fresh reader found new gaps, so the sweep never converged (url-shortener, 11/15/26).
+context:
+  scaffold_script: place-files.sh

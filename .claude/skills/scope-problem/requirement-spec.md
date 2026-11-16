@@ -127,7 +127,7 @@ Below those two go the **progress lines**. Each one is added when its phase fini
 | `Humanized: <date>` | The tighten and humanize passes are done. |
 | `Final check: <date>` | The final read is done, or was skipped because nothing changed. |
 
-When work goes back to an earlier phase and the doc changes, that phase's line and every line after it are deleted, so the later checks run again.
+When work goes back to an earlier phase and the doc changes, that phase's line and every line after it are deleted, so the later checks run again. The exception is a row the phase 6 sweep adds: `Reader test:` stays, and the final check reads the new row.
 
 ### Sections
 

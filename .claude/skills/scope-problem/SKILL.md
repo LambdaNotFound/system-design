@@ -38,7 +38,7 @@ These rules hold in every phase:
 
 - End every turn by updating the doc and the record and telling the user what changed in the doc.
 - Log each question and its answer under Questions asked as soon as it is answered, the frame questions included.
-- Add a progress line to the record when its phase is finished. When work goes back to an earlier phase and the doc changes, delete that phase's progress line and every line after it, so the later checks run again on the new text.
+- Add a progress line to the record when its phase is finished. When work goes back to an earlier phase and the doc changes, delete that phase's progress line and every line after it, so the later checks run again on the new text. A row the phase 6 sweep adds is the exception: `Reader test:` stays, and the final check reads the new row ([sign-off.md](sign-off.md)).
 - Dates are `MM/DD/YY` (`date +%m/%d/%y`).
 - Commit only when the user asks (CLAUDE.md has the format). No agent you dispatch commits.
 - Hand a dispatched agent the slug, file paths, and your question, never a paraphrase of what the user said: the files carry the substance, and paraphrase drifts.
