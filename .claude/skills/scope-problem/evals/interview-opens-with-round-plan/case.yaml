@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: interview-opens-with-round-plan
+expected_outcome: |
+  The record has Frame, Grounded and `Exit check: not offered`, and no Covered line. The skill
+  resumes at phase 3, writes a plan of five to eight themed rounds into the record's Round plan
+  table, ending with the trade-offs and walk-back rounds, shows the plan to the user, and asks
+  round 1 as three to six numbered questions. It does not add Covered.
+  Regression: a system-sized interview used to end after two rounds of default-confirming
+  questions, and the trade-offs reached the user as 15 sweep items (url-shortener, 11/15/26).
+context:
+  scaffold_script: place-files.sh

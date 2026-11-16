@@ -74,6 +74,13 @@ Origin: scope-problem <MM/DD/YY>
 | F1 | 11/09/26 | What are we trying to change or build? | A rate limiter in front of the public API. |
 | 2.3 | 11/09/26 | Is the gap the retry count, or that nobody is told after the third? Default: the second. | 3: yes |
 
+## Round plan
+
+| Round | Theme | State |
+| --- | --- | --- |
+| 1 | Goal and users | done |
+| 2 | Core behavior | |
+
 ## Coverage
 
 | Row | State | Where it landed |
@@ -120,7 +127,7 @@ Below those two go the **progress lines**. Each one is added when its phase fini
 | `Frame: <date>` | Phase 1 is done: the restatement is confirmed and both files exist. |
 | `Grounded: <date>` | Phase 2 is done, even if there was nothing to read. |
 | `Exit check: <date>, <not offered, declined or taken>` | The early exit was considered. |
-| `Covered: <date>` | Every coverage row has a state. |
+| `Covered: <date>` | The planned rounds are done and every coverage row has a state. |
 | `Decomposed: <date>` | The Decomposition table is confirmed and any piece docs are written. |
 | `Reader test: <date>` | The phase 5 read is done and its wording fixes are in. |
 | `Swept: <date>` | The phase 6 conflict sweep found nothing left undecided. |
@@ -132,6 +139,7 @@ When work goes back to an earlier phase and the doc changes, that phase's line a
 ### Sections
 
 - **Questions asked:** every question and its answer, logged as soon as it is answered, the frame questions included.
+- **Round plan:** the phase 3 rounds by theme, written before round 1 is asked. State is `done` when the round has closed, `cut` when the user dropped it, and empty until then. In `freeform` mode the table stays empty.
 - **Coverage:** one row per line of the coverage list, with its state: `settled`, `defaulted`, `assumed`, or `collapsed` with the reason.
 - **Evidence:** one row per claim, written as it is read. The label is `observed`, `inferred` or `assumed`.
 - **Open questions:** each with an owner and a default.

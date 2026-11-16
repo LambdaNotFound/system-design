@@ -60,7 +60,7 @@ The files are the checkpoint; no conversation context is needed. Read this file 
 | `Frame:` | Phase 1. Re-read Questions asked and ask only what it does not answer. With `Origin: investigation` in the record, ask what the draft's Open questions raise and what its `(assumed)` lines need confirmed. |
 | `Grounded:` | Phase 2. |
 | `Exit check:` | "After phase 2". |
-| `Covered:` | Phase 3. Re-read Questions asked so you do not re-ask, and continue from the first coverage row with no state. |
+| `Covered:` | Phase 3. Re-read Questions asked so you do not re-ask, and continue at the first round in the record's Round plan that is not done. With no plan there, make one first. |
 | `Decomposed:` | Phase 4. |
 | `Reader test:` | Phase 5. |
 | `Swept:` | Phase 6, step 1. |
@@ -72,7 +72,7 @@ Open your first message after reading the files with the state you resumed into,
 
 ## How this runs: as an interview
 
-Ask numbered questions in plain text, five to ten a round. Use `AskUserQuestion` only where the answer is a small closed set (which route, which of two options in a conflict): it caps at four questions of two to four options, which bends requirements gathering into multiple choice.
+A system-sized problem gets five to eight themed rounds, planned with the user at the start of phase 3 ([interview.md](interview.md)). Each round asks its open questions as numbered plain text, three to six a round, and then puts its trade-offs to the user in an `AskUserQuestion` dialog, each option with what it costs. Keep the dialog for trade-offs and other small closed sets (which route, which option in a conflict): it caps at four questions of two to four options, which bends an open question into multiple choice.
 
 Every round, say that shorthand is fine (`1: yes, 2: see the deploy script, 3: no, backwards compat` is a complete answer), and that a pointer to a file, a page, a book chapter, or a repo beats typing.
 
@@ -126,18 +126,18 @@ Add `Exit check: <date>` to the record with the outcome: `not offered`, `decline
 
 ## Phase 3: First-principles interrogation
 
-Read [interview.md](interview.md) now: it has the rounds, the stop rule and the coverage list. Then work the problem, not the request:
+Read [interview.md](interview.md) now: it has the round plan, the check after each round, the stop rule and the coverage list. Plan the rounds with the user, then work the problem, not the request:
 
 - Find the requirement behind the request. A solution-shaped ask ("add a cache") gets decomposed to what forces it: the forcing requirement lands as an FR or NFR, and the solution becomes a candidate for the design. If the user insists on the solution, it enters Low-level Design Preferences, imposed by definition. Their call, recorded honestly.
 - Steel-man doing nothing. If the Problem Statement cannot say why the null option loses, the problem is not yet understood.
 - Make done testable: push every requirement until you and the user can name the check that proves it, then word the requirement so the check is obvious from its text.
 - Draw the boundary. Propose exclusions for the `Out of scope:` line explicitly; an unchallenged scope is an unbounded one.
 - Disagree when you have evidence. Every challenge cites a source, a constraint, or a requirement already agreed.
-- Raise a conflict the moment you see it. Two requirements that cannot both hold, or a requirement the code or a cited page contradicts, goes to the user in the current round with its options and your recommendation. Log it in the record's Conflicts table with their decision. Phase 6 sweeps the whole doc once more before sign-off.
+- Raise a conflict the moment you see it. Two requirements that cannot both hold, or a requirement the code or a cited page contradicts, goes to the user in the current round with its options and your recommendation. Look for them after every round, as [interview.md](interview.md) says, instead of leaving them for the sweep. Log each in the record's Conflicts table with their decision. Phase 6 sweeps the whole doc once more before sign-off, as the last net.
 
 Lead each question with what you already found, and carry a proposed default so the user corrects rather than authors. A default is a starting point for an answer, never a substitute for asking: never silently adopt one on a coverage row.
 
-When every coverage row has a state, add `Covered: <date>` to the record.
+When the rounds are done and every coverage row has a state, add `Covered: <date>` to the record.
 
 ## Phase 4: Decompose
 

@@ -48,6 +48,7 @@ evals/
 ├── fixtures/                 one small sample system, frozen at each stage
 │   ├── place.sh              copies a stage into a run's working folder
 │   ├── empty/                the bare repo: README.md, CLAUDE.md, no systems
+│   ├── grounded/             scoping with the frame answered and the sources read, before the interview rounds
 │   ├── mid-sweep/            scoping in progress, with one planted conflict
 │   ├── final-check-twice/    over mid-sweep: two final checks logged, the second's contradiction open
 │   ├── scoped/               requirement.md signed off
