@@ -1,6 +1,6 @@
 # Requirement doc: URL shortener
 
-Status: draft
+Status: signed-off 11/15/26
 Slug: url-shortener
 Route: design
 Scoping record: design-doc/url-shortener/scoping.md

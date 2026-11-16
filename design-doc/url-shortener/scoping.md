@@ -10,7 +10,7 @@ Decomposed: 11/15/26
 Reader test: 11/15/26
 Swept: 11/15/26
 Humanized: 11/15/26
-Final check: 11/15/26
+Final check: 11/15/26, capped after two runs
 
 ## Questions asked
 
@@ -111,7 +111,7 @@ Final check: 11/15/26
 
 | Piece slug | Serves (parent IDs, mapped to piece IDs) | Route | Depends on | Handoff |
 | --- | --- | --- | --- | --- |
-| url-shortener | all: FR1–FR8, NFR1–NFR10 | design | none | `/new-design url-shortener` |
+| url-shortener | all: FR1–FR10, NFR1–NFR12 | design | none | `/new-design url-shortener` |
 
 ## Reader test
 
@@ -220,6 +220,7 @@ Final check: 11/15/26
     - NFR4 counts NFR8 rejections as available, which keeps the target time-based.
     - The Problem Statement reads "a long URL" rather than "any", since FR7 and FR9 restrict input.
   - **Left to the design:** whether disabling shares the creation write path (if it does, disables fail while creation fails); IDNA variant and Unicode normalization before conversion; and the items below.
+- **Cap, 11/15/26.** The second final check returned a contradiction (C5), so no third reader was dispatched. The rows changed after it (the Problem Statement, FR2, FR10 and NFR4) were shown to the user to read for themselves in the sign-off walk.
 - **Left to the design:** URL parser and IDNA version, a trailing-dot host under FR9, the redirect status code, what a disabled code returns, the code alphabet, codes colliding with service routes, how NFR11 is met during a partition (redirect servers that can't confirm freshness leave service), negative caching under NFR11, measurement windows, how client IPs are found, interfaces, and requests to a short URL with a query string or a trailing slash.
 
 ## Conflicts
@@ -242,6 +243,7 @@ Final check: 11/15/26
 | G11 | FR2 and FR7 | Non-ASCII input isn't a strict RFC 3986 URL and can't go into a redirect header exactly as typed. | Accept and convert first; reject | Accept, converted to a standard URL first (FR10) | 11/15/26 |
 | C4 | NFR8 and NFR4 | Limiting only an IP's misses can't stop enumeration, because the limited answer itself marks a miss; limiting every lookup hurts users sharing an IP. The "only" came from a phase 5 fix that was wrongly logged as wording. | Throttle every lookup after too many misses; delay responses; no throttle | Throttle every lookup from that IP for a cool-off, not counted against NFR4 (NFR8, NFR4) | 11/15/26 |
 | G12 | NFR6 and FR6 | A lost disable silently re-enables a link, and NFR6 covered only links. | Never lost; best effort | Never lost (NFR6) | 11/15/26 |
+| C5 | FR2 and NFR8 | Found by the second final check: FR2 promised that every link that isn't disabled redirects, while C4's cool-off rejects every lookup from a throttled IP. | FR2 excepts the cool-off, as C4 decided; no other option is consistent with C4 | Carried from C4 rather than asked separately: FR2 excepts an IP in an NFR8 cool-off (FR2); shown in the sign-off walk | 11/15/26 |
 
 ## Humanizer
 
