@@ -49,6 +49,7 @@ evals/
 │   ├── place.sh              copies a stage into a run's working folder
 │   ├── empty/                the bare repo: README.md, CLAUDE.md, no systems
 │   ├── mid-sweep/            scoping in progress, with one planted conflict
+│   ├── final-check-twice/    over mid-sweep: two final checks logged, the second's contradiction open
 │   ├── scoped/               requirement.md signed off
 │   ├── loop-approved/        the design loop approved and adopted, rfc.md not yet exported
 │   ├── loop-editorial-check/ the same, with an editorial check left unfinished in review.md

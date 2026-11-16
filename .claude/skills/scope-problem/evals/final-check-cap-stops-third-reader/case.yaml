@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: final-check-cap-stops-third-reader
+expected_outcome: |
+  The record is at phase 6, step 4: two final checks are logged under Reader test, and the second
+  one's contradiction is C4, still undecided. The prompt decides C4. The skill applies the decision,
+  reruns the sweep and the pass on what changed, and dispatches no third reader: it writes
+  `Final check: <date>, capped after two runs` and points the user to the rows the decision changed.
+  Regression: every final check that returned a contradiction sent scoping back through the sweep
+  and another final check, and each fresh reader found something new (url-shortener, 11/15/26).
+context:
+  scaffold_script: place-files.sh
