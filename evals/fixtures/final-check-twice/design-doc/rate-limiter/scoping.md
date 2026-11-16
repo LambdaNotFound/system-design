@@ -21,6 +21,7 @@ Humanized: 11/10/26
 | F4 | 11/09/26 | Anything that must or must not be used? | No new datastore beyond Redis, which we already run. |
 | F5 | 11/09/26 | Anything I should read first? | Nothing. |
 | 2.1 | 11/09/26 | If the store is down, fail open or fail closed? Default: open. | 1: open |
+| 2.2 | 11/09/26 | How much latency may the limiter add to a request? Default: at most 2 ms at p99. | 2: yes |
 
 ## Coverage
 
