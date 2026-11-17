@@ -201,5 +201,7 @@ preamble, no diffs, and no file contents:
 6. **Frozen tests changed**: each test and its reason, or `none`.
 7. **Brief corrections**: anything the brief asserts that the code or
    a source contradicts, as `brief claim | what is true | evidence`,
-   or `none`.
+   or `none`. One that `impl-run.md` already has as a `C<n>` line is
+   logged: leave it out. Its `D<n>` line, if any, is the user's
+   answer, and binds the code as a `Scope:` line does.
 8. **Follow-ups**: what is now logged in `impl.md`, or `none`.

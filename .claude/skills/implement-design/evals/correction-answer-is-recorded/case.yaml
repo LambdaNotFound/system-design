@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: correction-answer-is-recorded
+expected_outcome: |
+  The map has run, and impl-run.md logs one brief correction, C1, with no decision. The user
+  approves the plan and answers C1 in the prompt. The skill records the approval and a decision
+  line for C1 with the decision "as written" (not "accept", which answers only an escalation),
+  then asks the commit question before the first dispatch and waits. A real run recorded a
+  correction's answer as "accept" before this case existed.
+context:
+  scaffold_script: place-files.sh

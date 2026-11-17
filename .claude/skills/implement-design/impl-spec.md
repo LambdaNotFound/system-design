@@ -7,7 +7,7 @@
 - `impl.md`: the plan and the loop's log
 - The crate: layout and conventions
 - The two stages: tests first, then the logic
-- Checks: the commands, the record, and what passes
+- Checks: the manifest, the commands, the record, and what passes
 
 This file is the contract for what `/implement-design` produces. The
 coding expert shapes the plan and the crate to it, the bar-raiser
@@ -166,6 +166,22 @@ Covers: <N> amendments, <M> scope lines
 
 ## Checks
 
+After every author pass, and before its checks, the lead writes the
+tree manifest: one SHA-256 line per file the author owns, with paths
+relative to the repository root. From the root:
+
+```sh
+find src/<slug> src/Cargo.toml src/Cargo.lock -type f -not -path '*/target/*' -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 > <dir>/impl-checks/<label>.sha256
+```
+
+The manifest pins the tree each review reads, with or without
+commits. The newest `T` manifest is the frozen test set: a line under
+`src/<slug>/tests/` that changed or went missing since is a frozen
+test change, and a new line is a new test. After a review pass the
+same command, printed rather than written, matches the newest
+manifest. A loop started before manifests has none; its reviewer goes
+by the Revision log's file lists.
+
 The lead runs the `## Checks` block once after every author pass,
 from `src/`, each command as written. The default block:
 
@@ -196,13 +212,14 @@ Date: <MM/DD/YY>
 
 Tests: <n> run, <n> passed, <n> failed, <n> failed at todo
 Passed against stubs: <test names, or none>
+Manifest: impl-checks/<label>.sha256
 Result: pass
 ```
 
 `Stage:` is `tests` or `implementation`. `Passed against stubs:` is
 written in the tests stage only. A second run for the same pass, after
-a fix, replaces the record and its logs. The record is committed with
-the loop's other files. The logs are not: cargo prints absolute paths
+a fix, replaces the record, its logs and the manifest. The record and
+the manifest are committed with the loop's other files. The logs are not: cargo prints absolute paths
 in them, so `.gitignore` keeps `impl-checks/*.log` out of the
 repository.
 

@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: pending-checks-write-the-manifest
+expected_outcome: |
+  Both stages are approved, but the R0 pass has no check record. The skill resumes into the
+  pending checks for R0: it writes the tree manifest impl-checks/R0.sha256 with paths relative to
+  the repository root, runs the Checks block from src/, and writes impl-checks/R0.md naming the
+  manifest. A real run with commits off had no record of which files changed between passes, so
+  its reviewer judged the frozen tests by file times.
+context:
+  scaffold_script: place-files.sh
