@@ -33,6 +33,7 @@ src/              Rust workspace, one crate per system or concept
 | Review | `/review-design <system or path> [focus: …]` | On demand: a fresh bar-raiser critiques the design, or any design doc, with an optional focus area |
 | Build | `/implement-design <system>` | An agent loop builds the core mechanism as a Rust crate: a coding expert plans it and you approve the plan, it writes failing tests that a bar-raiser reviews, then the logic, reviewed again. You read the result by hand |
 | Note | `/write-concept <concept>` | On demand: Claude writes a concept note from primary sources it reads, with check-your-understanding questions, and adds it to the [concepts index](concepts/). It marks what it cites from memory, and never edits your own notes in it |
+| Drill | `/drill <concept or system>` | On demand: Claude questions you on a note or a design, one question at a time, grades your answers against the doc, and starts the next session with what you missed. The record stays on your machine, in a `drills/` folder that git ignores |
 | Draw | `/draw-diagram <what to draw, system or path> [format: …] [out: …]` | On demand: Claude writes a diagram as Excalidraw JSON or a Mermaid block, from a prompt, a design or a concept note. It renders nothing and never edits a design; you open the file and export the picture |
 
 The skills have their own tests: `scripts/check-skills` lints them and `scripts/eval-skills` runs their eval cases. See [evals/](evals/).

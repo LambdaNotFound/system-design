@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: answer-is-graded-into-the-record
+expected_outcome: |
+  The record holds a hit, a miss and an open question, and the user's message answers the open one
+  in full. The skill grades it a hit on its own line, asks the missed question next in its recorded
+  wording, leaves the earlier hit alone, and keeps the user's answer out of the record.
+context:
+  scaffold_script: place-files.sh

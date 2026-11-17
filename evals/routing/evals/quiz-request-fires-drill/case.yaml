@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: quiz-request-fires-drill
+expected_outcome: |
+  A request to be quizzed on a design goes to drill, not to the skill that critiques a design or
+  the ones that write one.
+context:
+  scaffold_script: place-files.sh
