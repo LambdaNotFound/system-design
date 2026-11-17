@@ -1,0 +1,6 @@
+[workspace]
+resolver = "3"
+members = ["url-shortener"]
+
+[workspace.package]
+edition = "2024"
