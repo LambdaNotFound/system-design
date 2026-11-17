@@ -1,5 +1,5 @@
 ---
-tags: [first-turn]
+tags: [cross-skill, new-design, first-turn]
 max_turns: 12
 timeout_seconds: 300
 allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, Bash]

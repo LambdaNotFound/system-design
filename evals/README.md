@@ -69,7 +69,7 @@ evals/
 
 The skills form a pipeline, so each skill's cases start from the stage before it: `/new-design` from `scoped/`, `/review-design` and `/implement-design` from `loop-closed/`. Add a stage when the first case needs it. Every stage is laid over `empty/` and holds only what differs, so a case names its stages in order: `place.sh scoped loop-approved loop-closed`.
 
-`/new-design`, `/review-design` and `/implement-design` dispatch subagents, and a full loop is far too expensive to run as a test. Their cases are written to end before the first dispatch: they check what the skill says and does on the way in, and which state it resumes into. The one exception is `/review-design`'s artifact case, `focused-review-appends-to-ledger`, which runs a single bar-raiser. It lives in `routing/evals/` with the tag `cross-skill`, because the bar-raiser's role file is in `/new-design`'s folder.
+`/new-design`, `/review-design` and `/implement-design` dispatch subagents, and a full loop is far too expensive to run as a test. Their cases are written to end before the first dispatch: they check what the skill says and does on the way in, and which state it resumes into. The one exception is `/review-design`'s artifact case, `focused-review-appends-to-ledger`, which runs a single bar-raiser. It lives in `routing/evals/` with the tag `cross-skill`, because the bar-raiser's role file is in `/new-design`'s folder. `/new-design`'s `announces-plan-before-dispatch` lives there too: the skill stops when a file it names is missing, and two of them are in sibling skills' folders, so a single-skill run stopped before the commit question.
 
 ## A case
 
