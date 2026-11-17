@@ -5,7 +5,8 @@ System-design learning notes: design docs, concept notes, and small Rust impleme
 ## Layout
 
 ```
-.claude/skills/     scope-problem · new-design · review-design · implement-design · draw-diagram
+.claude/skills/     scope-problem · new-design · review-design · implement-design ·
+                    draw-diagram · write-concept
 .githooks/          commit-msg checks the commit format; prepare-commit-msg adds the date;
                     pre-commit lints the skills; post-commit, post-merge and post-rewrite
                     install them into ~/.claude/skills when on main
@@ -31,7 +32,7 @@ README.md           index of all designs (status · started · code)
 - **Scoping: interview, then sign off.** `/scope-problem` comes before a design. Claude interviews the user in themed rounds, five to eight for a system: numbered questions that each carry a proposed default to correct, then a dialog for the round's trade-offs. It checks the draft for clashes and gaps after every round, reads this repo and the sources the user names, and writes `requirement.md` for the user to sign. The RFC carries its FR and NFR rows verbatim and cites them by ID.
 - **Design docs: an agent loop writes the RFC.** `/new-design` takes the signed requirement doc and runs a design-review loop of fresh subagents: an investigator writes the design, a bar-raiser challenges it in rounds until it approves or escalates, and an auditor gives the approved text one editorial pass. Claude leads the loop and writes no design itself. The user decides what the loop escalates. Don't hand-write or hand-edit `design.md`, `review.md` or `rfc.md`.
 - **Reviews: on demand, by a fresh bar-raiser.** `/review-design` critiques a design from this repo or any design doc by path, with an optional focus area. Findings go to the design's `review.md` with IDs. Go through them with the user as a coach; a design changes only when the user picks the objections to fix.
-- **Concept notes: Claude writes them**, with sources and check-your-understanding questions; the user annotates. Format and index: `concepts/README.md`.
+- **Concept notes: Claude writes them.** `/write-concept` writes `concepts/<slug>.md` from primary sources it reads in the session, with check-your-understanding questions and a sources list that says what was read and what is cited from memory. The user annotates under My notes, which Claude never edits. It links a note to the designs that use it, and never edits a design to link back. Index: `concepts/README.md`.
 - **Code: an agent loop writes the crate, tests first.** `/implement-design` takes the RFC and runs an implementation loop of fresh subagents: a coding expert plans the crate and the user approves the plan; it writes the types and failing tests, which a bar-raiser reviews against the design; then it writes the logic, which the bar-raiser reviews against the checks Claude ran. Claude leads the loop and writes no code itself. The user decides what the loop escalates and reads the finished crate by hand. Don't hand-edit `impl.md` or `impl-review.md`.
 - **Diagrams:** Claude writes sequence and flow diagrams in Mermaid, inline in the doc. Architecture diagrams are `diagrams/*.excalidraw.svg`, drawn by the user after the design is approved: the RFC carries a brief of what to draw, and Claude reviews the drawing before it is embedded. To look at a drawing on macOS, render it with `qlmanage -t -s 1600 -o <scratchpad> <file>` and read the PNG; elsewhere, read the SVG's `<text>` labels.
 
@@ -49,7 +50,7 @@ The flow, the case format and what each case kind checks are in `evals/README.md
 - Eval runs spend the same usage limit as the session. `eval-skills` stops at the first run that hits it and exits 2: after the reset, rerun the same command with `--resume`, which skips the cases that finished. Don't debug a limit stop.
 - The loop skills dispatch their subagents at `high` effort. Go higher only when the user names a level.
 - This repository is public. A skill writes repository-relative paths into the files it commits, never absolute ones, and keeps raw tool logs out of git.
-- Third-party skills stay out of `.claude/skills/`: everything there is linted, owes eval cases and is installed globally. Install one as a personal skill in `~/.claude/skills/` instead. The auditor and `/scope-problem`'s humanize pass load a skill named `humanizer` when the session has one, and this repo's rules win where the two disagree.
+- Third-party skills stay out of `.claude/skills/`: everything there is linted, owes eval cases and is installed globally. Install one as a personal skill in `~/.claude/skills/` instead. The auditor, `/scope-problem`'s humanize pass and `/write-concept` load a skill named `humanizer` when the session has one, and this repo's rules win where the two disagree.
 
 ## Coaching style
 

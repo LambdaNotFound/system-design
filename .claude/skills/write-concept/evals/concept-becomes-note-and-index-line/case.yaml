@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: concept-becomes-note-and-index-line
+expected_outcome: |
+  From a repository with no notes, the skill writes concepts/consistent-hashing.md to the note spec
+  and adds its line to the concepts index. The run has no web tool, so it cites from memory and
+  marks its sources that way.
+context:
+  scaffold_script: place-files.sh

@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: note-request-fires-write-concept
+expected_outcome: |
+  A request to write a building block up as a note goes to write-concept, not to the skills that
+  scope, design, build or draw.
+context:
+  scaffold_script: place-files.sh

@@ -57,7 +57,8 @@ evals/
 │   ├── loop-closed/          rfc.md exported and the README row at Reviewed
 │   ├── loop-review-unfinished/ a /review-design review cut off before its verdict
 │   ├── impl-mapped/          the implementation loop's plan written, not yet approved
-│   └── impl-approved/        both of its stages approved and a small crate in src/, not yet closed
+│   ├── impl-approved/        both of its stages approved and a small crate in src/, not yet closed
+│   └── concept-noted/        one concept note with the user's annotations, written before any design used it
 └── routing/                  a wrapper that loads every skill together
     ├── skills -> ../../.claude/skills
     └── evals/<case>/         which-skill-fires cases
@@ -66,7 +67,7 @@ evals/
 └── lint.py                   optional: the skill's own checks, run by check-skills
 ```
 
-The skills form a pipeline, so each skill's cases start from the stage before it: `/new-design` from `scoped/`, `/review-design` and `/implement-design` from `loop-closed/`. Add a stage when the first case needs it. Every stage is laid over `empty/` and holds only what differs, so a case names its stages in order: `place.sh scoped loop-approved loop-closed`.
+The skills form a pipeline, so each skill's cases start from the stage before it: `/new-design` from `scoped/`, `/review-design` and `/implement-design` from `loop-closed/`. `/write-concept` stands beside the pipeline: its cases start from `empty/`, or from `concept-noted/` laid over `loop-closed/`. Add a stage when the first case needs it. Every stage is laid over `empty/` and holds only what differs, so a case names its stages in order: `place.sh scoped loop-approved loop-closed`.
 
 `/new-design`, `/review-design` and `/implement-design` dispatch subagents, and a full loop is far too expensive to run as a test. Their cases are written to end before the first dispatch: they check what the skill says and does on the way in, and which state it resumes into. The one exception is `/review-design`'s artifact case, `focused-review-appends-to-ledger`, which runs a single bar-raiser. It lives in `routing/evals/` with the tag `cross-skill`, because the bar-raiser's role file is in `/new-design`'s folder.
 
