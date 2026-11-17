@@ -48,6 +48,7 @@ The flow, the case format and what each case kind checks are in `evals/README.md
 - Eval runs spend the same usage limit as the session. `eval-skills` stops at the first run that hits it and exits 2: after the reset, rerun the same command with `--resume`, which skips the cases that finished. Don't debug a limit stop.
 - The loop skills dispatch their subagents at `high` effort. Go higher only when the user names a level.
 - This repository is public. A skill writes repository-relative paths into the files it commits, never absolute ones, and keeps raw tool logs out of git.
+- Third-party skills stay out of `.claude/skills/`: everything there is linted, owes eval cases and is installed globally. Install one as a personal skill in `~/.claude/skills/` instead. The auditor and `/scope-problem`'s humanize pass load a skill named `humanizer` when the session has one, and this repo's rules win where the two disagree.
 
 ## Coaching style
 
