@@ -13,4 +13,4 @@ Four things stop the loop for a decision. Put the matter to the user in one mess
 | `Editorial check <k>` not approved | Dispatch the investigator with `respond to editorial check <k>`, then the bar-raiser with `editorial check <k+1>`. | Close as it stands, and report the finding as a residual risk. |
 | `A<n>` or `V<k>` reopens the design | Delete that pass's snapshot, note `rounds through <N+2>`, and dispatch the bar-raiser with `review round <N+1>` and `Reopened by:`. | Not offered: the user withdraws the amendment with another one, or drops the fix. |
 
-`stop` ends the loop where it is. A design that was never approved is not exported. One decision line answers one occurrence: a second escalation needs its own line.
+`stop` ends the loop where it is. A design that was never approved is not exported, and its row in the root `README.md` goes back to `Scoped`; a later `continue` sets it to `Drafting` again. One decision line answers one occurrence: a second escalation needs its own line.

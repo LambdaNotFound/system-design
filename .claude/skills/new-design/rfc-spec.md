@@ -37,12 +37,14 @@ audit trail.
 An RFC is a 20-minute read: at most 4,000 words from the header block
 to the Appendix, or to References when there is no Appendix, unless
 the brief sets `Word budget: <n>` in its header or in an amendment.
-Code sketches and the verbatim requirement rows count; Mermaid
-blocks, the Appendix, References, and everything below the loop-state
-marker do not. Measure it, never estimate:
+The budget binds the text the author controls. Code sketches count.
+The FR and NFR table rows do not: they are the brief's words, copied
+verbatim, and the author can't shorten them. Neither do Mermaid
+blocks, the Appendix, References, or anything below the loop-state
+marker. Measure it, never estimate:
 
 ```sh
-awk 'NR==1{next} /^<!-- loop state below: not part of the RFC -->$/ || /^#+ (Appendix|References)/{exit} /^```mermaid/{m=1} m{if(/^```[ \t]*$/)m=0; next} /^\|[-: |]+\|$/{next} {gsub(/\|/," "); n+=NF} END{print n+0}' <loop dir>/design.md
+awk 'NR==1{next} /^<!-- loop state below: not part of the RFC -->$/ || /^#+ (Appendix|References)/{exit} /^```mermaid/{m=1} m{if(/^```[ \t]*$/)m=0; next} /^#/{q=/^#+ (Functional|Non-functional) Requirements/} q&&/^\|/{next} /^\|[-: |]+\|$/{next} {gsub(/\|/," "); n+=NF} END{print n+0}' <loop dir>/design.md
 ```
 
 Fit the budget by saying each thing once, not by thinning the design:
@@ -60,7 +62,9 @@ Fit the budget by saying each thing once, not by thinning the design:
   config listings, wire layouts, the arithmetic behind a bound, and
   minor variants of a rival, one line each (the steel-man rule binds
   the alternatives in the body). The Appendix carries no prose beyond
-  one lead-in line per item, and the body never repeats it.
+  one lead-in line per item, and the body never repeats it. It is not
+  a way around the budget: an argument that a guarantee in the body
+  rests on stays in the body.
 - Cut repetition before depth: what the riskiest component needs to be
   proven stays in the body.
 

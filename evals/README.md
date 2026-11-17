@@ -54,6 +54,7 @@ evals/
 │   ├── scoped/               requirement.md signed off
 │   ├── loop-approved/        the design loop approved and adopted, rfc.md not yet exported
 │   ├── loop-editorial-check/ the same, with an editorial check left unfinished in review.md
+│   ├── loop-reopened/        over loop-approved: an amendment reopened the design, and rounds 3 and 4 approved it again
 │   ├── loop-closed/          rfc.md exported and the README row at Reviewed
 │   ├── loop-review-unfinished/ a /review-design review cut off before its verdict
 │   ├── impl-mapped/          the implementation loop's plan written, not yet approved

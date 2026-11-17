@@ -47,7 +47,7 @@ Dates are `MM/DD/YY` (`date +%m/%d/%y`).
 
 ## Dispatch
 
-Send each role to a fresh `general-purpose` subagent. Never use a fork, or any agent that sees this conversation: the bar-raiser's derivation must not be anchored by it, and the files must carry everything. Do not substitute a named agent the session defines: its own instructions may write to other paths. Where the Agent tool offers a reasoning effort, run the investigator and the bar-raiser at `high`. Go higher only when the user names a level: `xhigh` and `max` lengthen every run, and pay off only where a gain has been measured.
+Send each role to a fresh `general-purpose` subagent. Never use a fork, or any agent that sees this conversation: the bar-raiser's derivation must not be anchored by it, and the files must carry everything. Do not substitute a named agent the session defines: its own instructions may write to other paths. Where the Agent tool offers a reasoning effort, run every role at `high`. Go higher only when the user names a level: `xhigh` and `max` lengthen every run, and pay off only where a gain has been measured.
 
 Fill every `<field>` with an absolute path or a value, and send:
 
@@ -88,20 +88,20 @@ Relay only slugs, round numbers, verdicts, and tasks. The substance travels thro
 
 1. **Round 0: author.** Set the system's row in the root `README.md` Designs table to `Drafting`, then dispatch the investigator with `round 0`. It writes `design.md`, with an `## Evidence` table, a `## Revision log` and an `## Objection responses` section below the loop-state marker. If it returns `not answerable`, the loop waits for the user.
 2. **Round N: challenge.** Dispatch the bar-raiser with `review round N`. It appends `## Round N` to `review.md` and returns a verdict:
-   - `approve` or `approve-with-risks`: step 4. The investigator is not invoked again for what an `approve-with-risks` round leaves open: the round's residual-risk and unaddressed lists are their disposition, and they travel with the deliverable.
+   - `approve` or `approve-with-risks`: step 4. No further round runs for what an `approve-with-risks` round leaves open. Its residual risks travel with the deliverable. The objections on its `Unaddressed` list get one answer from the investigator, in step 4's adoption pass.
    - `revise`: step 3.
    - `reject-approach`: step 3, and the investigator restarts the design core instead of patching it. It costs a round.
    - `escalate`: the loop waits for the user. Do not loop around an irreconcilable core.
 3. **Respond and revise.** Dispatch the investigator with `respond to round N`. It answers every objection by ID (accepted, rebutted, or deferred), revises `design.md` in place, and logs `R<N>:`. Then step 2 as round N+1.
 4. **Editorial pass, after approval only.** Dispatch the auditor with `audit design.md`. It writes `design.rewritten.md` and returns a claim-inventory report.
-   - Clean inventory: dispatch the investigator with `adopt the editorial pass`. Then verify the adoption yourself, because the inventory was run on the rewrite and not on what was adopted:
+   - Clean inventory: dispatch the investigator with `adopt the editorial pass`. It takes the rewrite's text by command, and where the approving round left an `Unaddressed` list it answers each objection on it, logging every edit as a correction. Then verify the adoption yourself, because the inventory was run on the rewrite and not on what was adopted:
 
      ```sh
      diff <(awk '/^<!-- loop state below: not part of the RFC -->$/{exit} {print}' <dir>/design.rewritten.md) <(awk '/^<!-- loop state below: not part of the RFC -->$/{exit} {print}' <dir>/design.md)
      ```
 
      No difference and `Adopted`: the loop closes. Any difference, or `Adopted with corrections`: dispatch the bar-raiser with `editorial check 1`, naming the sections that differ and the investigator's corrections. `approve` closes the loop; any other verdict waits for the user.
-   - Failed rewrite (a lost claim, a changed section): keep `design.md` as approved, append `audit | <date> | failed | <reason>` to `loop.md`, and close. Tell the user the audit failed and why. Run the auditor again only on the user's word.
+   - Failed rewrite (a lost claim, a changed section): keep `design.md` as approved, append `audit | <date> | failed | <reason>` to `loop.md`, and close. Tell the user the audit failed and why. Run the auditor again only on the user's word. With no adoption pass, the round's `Unaddressed` objections stay open: report them at Close.
 
    Delete `design.rewritten.md` when the loop closes.
 5. **The round budget is a deadline, not a target.** It is 5 rounds, or the highest `rounds through <M>` in `loop.md`. The bar-raiser lands approve, approve-with-risks, or escalate by the last round. A `revise` or `reject-approach` there is out of contract: treat it as `escalate`, and put the round's open blocking objections to the user. Converging in 2 rounds because round 1 was thorough is the success case.
@@ -136,10 +136,10 @@ Once a round approves, an amendment the user makes gets a scoped edit, not a reo
 1. `/review-design` owns the open work: the last section of `review.md` is a `## Review <k>` or `## Review <k> check <p>` with no `Verdict:` line, or a `design.pre-V<k>.md` snapshot exists. Point the user to `/review-design <slug>`, which finishes it, and stop. Never dispatch a review or a review-fix check from here: those prompts are `/review-design`'s.
 2. The last section of `review.md` is a loop section (`## Round <N>`, `## Editorial check <k>` or `## Amendment A<n> check <p>`) with no `Verdict:` line: it is unfinished. Dispatch the bar-raiser for that same round or check, and say the section is unfinished. This comes before the states below because they read verdicts.
 3. No `design.md`, or no `R0:` entry in its revision log: round 0 is pending. Dispatch the investigator with `round 0`.
-4. The loop waits for the user ([waiting.md](waiting.md)) and `loop.md` has no decision line for this occurrence: put it to them. With a decision line, do what its column says, and read the states below with the verdict counted as that line makes it count.
+4. The loop waits for the user ([waiting.md](waiting.md)) and `loop.md` has no decision line for this occurrence: put it to them. With a decision line, do what its column says, unless the files show that was already done: `review.md` has a round or check, or the revision log an entry, later than what the line answers. Then go on to the states below. Either way, read them with the verdict counted as that line makes it count.
 5. The last `## Round N` verdict is `revise` or `reject-approach`, and the revision log has no `R<N>:` entry: dispatch the investigator with `respond to round N`.
 6. Same verdict, and the `R<N>:` entry exists: dispatch the bar-raiser with `review round N+1`.
-7. The latest `(after approval)` amendment, `A<n>`, has no `A<n>.1:` entry: make its snapshot if it is missing, then dispatch the investigator with `amendment A<n> pass 1`.
+7. States 7 to 9 are for an amendment that runs as a scoped pass. One whose `A<n>.1:` entry reads `reopens the design` does not: it has no checks and no snapshot, and the rounds after it carry it, so skip it in all three. The latest `(after approval)` amendment, `A<n>`, has no `A<n>.1:` entry: make its snapshot if it is missing, then dispatch the investigator with `amendment A<n> pass 1`.
 8. `A<n>` has more `A<n>.<p>:` entries than `## Amendment A<n> check` sections: dispatch the bar-raiser for the next check.
 9. `A<n>`'s last check verdict is `revise`: dispatch the investigator for the next pass.
 10. The last round approved, and the revision log has no `editorial:` entry after its last `R<N>:` entry:
@@ -159,4 +159,4 @@ awk '/^<!-- loop state below: not part of the RFC -->$/{exit} {print}' <dir>/des
 
 Then, in the root `README.md` Designs table, set the system's row to `Reviewed` and point its link at `design-doc/<slug>/rfc.md`. A row that is already further along keeps its status.
 
-Report the verdict, the paths of `rfc.md`, `design.md` and `review.md`, the residual risks with their triggers, and any brief correction still open. If the RFC still carries a `*Diagram:` line, give the user its brief: what to draw, and to save it as `diagrams/architecture.excalidraw.svg` and run `/new-design <slug>` again to have it embedded. Name the next steps: `/review-design <slug>` for a deep dive on any area, and `/implement-design <slug>` to build the core mechanism. Commit only if the user agreed to commits.
+Report the verdict, the paths of `rfc.md`, `design.md` and `review.md`, the residual risks with their triggers, the `Unaddressed` objections that are still open, by ID, and any brief correction still open. If the RFC still carries a `*Diagram:` line, give the user its brief: what to draw, and to save it as `diagrams/architecture.excalidraw.svg` and run `/new-design <slug>` again to have it embedded. Name the next steps: `/review-design <slug>` for a deep dive on any area, and `/implement-design <slug>` to build the core mechanism. Commit only if the user agreed to commits.

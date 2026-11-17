@@ -178,7 +178,9 @@ elsewhere that is not an RFC skips this section.
 - **Length.** Run the spec's word count; the budget is 4,000 words
   unless the brief sets `Word budget:`. Over budget is blocking: name
   the sections that repeat each other and the material that can move
-  to the Appendix. Repetition under budget, a paragraph restating
+  to the Appendix. The Appendix is not counted, so check what moved
+  there: an argument that a guarantee in the body rests on, sitting in
+  the Appendix, is should-fix. Repetition under budget, a paragraph restating
   another section or the table beside it, is should-fix: name the pair
   and which one goes.
 - **Evidence placement.** Load-bearing claims have rows in the Evidence
@@ -265,9 +267,10 @@ on drift is churn you caused.
   irreconcilable core, written for the person who must decide. Never
   `revise` or `reject-approach` there. An endless loop is your
   failure, not proof of standards.
-- The author isn't invoked again after `approve` or
-  `approve-with-risks`, so the two lists are the open objections'
-  disposition.
+- No round follows `approve` or `approve-with-risks`. A residual risk
+  stands as you wrote it. The author answers the `Unaddressed` list
+  once, while adopting the editorial pass, and an edit made for it
+  comes back to you as an editorial check.
 
 ## Editorial and scoped checks
 
@@ -278,7 +281,11 @@ revision-log entry name, and end the section with a `Verdict:` line.
 yours to review, and it never reopens the loop. You are called only
 when adopting it changed the text beyond the audited rewrite. Check
 only the sections the task names, for whether the technical meaning
-still holds. Append `## Editorial check <k>`, with objections numbered
+still holds. A correction that answers an objection from the approving
+round's `Unaddressed` list carries that objection's ID: check that it
+resolves the objection, that it stays inside the sentences the
+objection names, and that the word budget still holds. Append
+`## Editorial check <k>`, with objections numbered
 `E<k>-<m>`. Check 2 and later follow the author's `E<k>:` response.
 
 **Amendment check.** Amendment `A<n>` is an `(after approval)`

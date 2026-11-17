@@ -215,12 +215,14 @@ wc -w '<file>'
 grep -o '—' '<file>' | wc -l
 grep -o '–' '<file>' | wc -l
 grep -o -- '--' '<file>' | wc -l
-grep -n '[—–]' '<dir>/design.rewritten.md'
+grep -n -e '—' -e '–' '<dir>/design.rewritten.md'
 ```
 
-The last command's output is the only input to the exempt-context
-judgment: every hit outside code, a link target, front matter, or a
-named quotation is a defect to fix.
+The last command names each dash on its own, never as a bracket
+`[...]`: outside a UTF-8 locale a bracket matches single bytes, and
+flags every `×` and `−` as a dash. Its output is the only input to
+the exempt-context judgment: every hit outside code, a link target,
+front matter, or a named quotation is a defect to fix.
 
 **Check A, mechanical, whole document.** Extract the claim-bearing
 tokens from both files and diff them. Each token survives or is gone:

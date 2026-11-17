@@ -247,9 +247,16 @@ Never backfill from memory: memory is assumed.
     exists to surface that disagreement;
   - **deferred**, with why it doesn't block this design.
 - No silent drops: an objection without a disposition means the round
-  isn't finished. The exception is an `approve-with-risks` verdict:
-  its residual-risk and unaddressed lists are the disposition of the
-  objections it leaves open, and you aren't invoked for them.
+  isn't finished. The exception is an `approve-with-risks` verdict: no
+  round follows it. Its residual risks stand as written, and you
+  answer its `Unaddressed` list once, in the adoption pass (Editorial
+  adoption).
+- A revision is new material, and the reviewer attacks new material
+  first. Before you return, turn the bar-raiser's failure question on
+  each mechanism, limit, or path this round added: who can choose to
+  take it, and what breaks first under 10x load, partial failure, or a
+  retry storm. Prefer the smallest change that resolves an objection.
+  A fix that opens a new hole costs a round.
 - After `reject-approach`, restart the design core instead of
   patching it.
 - When the lead's prompt names `Reopened by:`, the round you answer
@@ -259,7 +266,8 @@ Never backfill from memory: memory is assumed.
   the revision log carries the history. Edit section by section with
   `Edit`. Use `Write` only to create the file in round 0: one
   whole-file rewrite late in the loop can silently drop what earlier
-  rounds settled.
+  rounds settled. The one other exception is the adoption command
+  under Editorial adoption.
 
 ## Editorial adoption
 
@@ -267,16 +275,33 @@ After approval the auditor writes `design.rewritten.md`. When asked to
 adopt it, diff it against `design.md` for technical meaning: every
 claim, number, label, citation, and qualifier must survive.
 
-- If the meaning held, replace `design.md`'s prose with the audited
-  prose, exactly as the auditor wrote it, and log `editorial: adopted`.
-- If anything drifted, correct it during adoption and log
-  `editorial: adopted with corrections: <each correction and its section>`.
+Take the audited text by command, never by retyping it: the lead
+diffs your result against the rewrite, and one slipped character
+costs a bar-raiser run. This puts the rewrite's text above the
+loop-state marker over your own loop state, which stays as it is.
+Write the literal paths in:
 
-The lead diffs your result against the rewrite, and every difference
-goes to the bar-raiser, so change nothing you don't name. Adoption
-never changes the design's substance, and it is the one revision that
-needs no objection ID. Leave `design.rewritten.md` in place; the lead
-deletes it.
+```sh
+M='<!-- loop state below: not part of the RFC -->'; { awk -v M="$M" '$0==M{exit} {print}' '<dir>/design.rewritten.md'; awk -v M="$M" '$0==M{f=1} f' '<dir>/design.md'; } > '<dir>/design.adopting.md' && mv '<dir>/design.adopting.md' '<dir>/design.md'
+```
+
+Then, with `Edit`:
+
+- If the meaning held, log `editorial: adopted`.
+- If anything drifted, correct it and log
+  `editorial: adopted with corrections: <each correction and its section>`.
+- If the approving round's verdict is `approve-with-risks` and it has
+  an `Unaddressed` list, answer each objection on it by ID under
+  Objection responses, with a disposition as in a round. An accepted
+  one gets the smallest edit that resolves it, inside the sentences it
+  names; one that needs more than that is deferred, with the reason.
+  Every edit is a correction: name it and its section in the log
+  entry, with the objection's ID. Run the spec's word count after.
+
+The lead's diff shows every correction, and each goes to the
+bar-raiser, so change nothing you don't name. Beyond those answers,
+adoption never changes the design's substance. Leave
+`design.rewritten.md` in place; the lead deletes it.
 
 When asked to `respond to editorial check <k>`, answer that check's
 objections by ID, edit only the sections it names, and log `E<k>:`
@@ -359,7 +384,8 @@ A response to round N:
 4. **Brief corrections**, as in round 0.
 
 An adoption pass: **Adopted** or **Adopted with corrections**, each
-correction named, and the revision-log entry. A response to an
+correction named, the disposition of each `Unaddressed` objection,
+and the revision-log entry. A response to an
 editorial check: the dispositions and the `E<k>:` entry.
 
 A scoped pass: **Amended** or **Fixed**, with the dispositions, the

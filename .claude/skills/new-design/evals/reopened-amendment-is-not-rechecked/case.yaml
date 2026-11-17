@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: reopened-amendment-is-not-rechecked
+expected_outcome: |
+  Amendment A1 reopened the design, the user chose to continue, and rounds 3 and 4 then ran and
+  approved, with the editorial pass adopted again. The skill resumes into the closed state and
+  runs Close. It dispatches no amendment check: A1 was carried by the rounds, not by a scoped pass.
+  Regression: the `A1.1: reopens the design` log entry used to count as a pass with no check, so
+  the resume dispatched `amendment A1 check 1` against a snapshot that had been deleted.
+context:
+  scaffold_script: place-files.sh
