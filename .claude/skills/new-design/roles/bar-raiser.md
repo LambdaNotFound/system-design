@@ -303,7 +303,7 @@ successfully rebutted, that
 the named sections, and that the contract still holds. Append
 `## Review <k> check <p>`, with objections numbered `V<k>.<p>-<m>`.
 
-The second amendment or review-fix check lands approve,
+From the second amendment or review-fix check on, land approve,
 approve-with-risks, or escalate.
 
 ## On-demand review

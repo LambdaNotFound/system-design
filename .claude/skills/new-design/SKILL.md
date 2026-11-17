@@ -37,6 +37,7 @@ Files that go with this skill. If one is missing, stop and tell the user where i
 | `review.md` | bar-raiser | the append-only ledger: rounds, checks, and `/review-design` reviews |
 | `loop.md` | you | the append-only log of user decisions and failed audits |
 | `design.rewritten.md` | auditor | the editorial draft, deleted at close |
+| `design.pre-editorial.md` | you | `design.md` as approved, kept from the adoption until the loop closes |
 | `design.pre-A<n>.md` | you | `design.md` as it stood before amendment `A<n>`, deleted when it closes |
 | `rfc.md` | you | the exported RFC, rewritten at every close |
 | `diagrams/` | the user | the architecture drawing, made after approval |
@@ -94,7 +95,7 @@ Relay only slugs, round numbers, verdicts, and tasks. The substance travels thro
    - `escalate`: the loop waits for the user. Do not loop around an irreconcilable core.
 3. **Respond and revise.** Dispatch the investigator with `respond to round N`. It answers every objection by ID (accepted, rebutted, or deferred), revises `design.md` in place, and logs `R<N>:`. Then step 2 as round N+1.
 4. **Editorial pass, after approval only.** Dispatch the auditor with `audit design.md`. It writes `design.rewritten.md` and returns a claim-inventory report.
-   - Clean inventory: dispatch the investigator with `adopt the editorial pass`. Then verify the adoption yourself, because the inventory was run on the rewrite and not on what was adopted:
+   - Clean inventory: copy `design.md` to `design.pre-editorial.md`, then dispatch the investigator with `adopt the editorial pass`. Then verify the adoption yourself, because the inventory was run on the rewrite and not on what was adopted:
 
      ```sh
      diff <(awk '/^<!-- loop state below: not part of the RFC -->$/{exit} {print}' <dir>/design.rewritten.md) <(awk '/^<!-- loop state below: not part of the RFC -->$/{exit} {print}' <dir>/design.md)
@@ -103,8 +104,8 @@ Relay only slugs, round numbers, verdicts, and tasks. The substance travels thro
      No difference and `Adopted`: the loop closes. Any difference, or `Adopted with corrections`: dispatch the bar-raiser with `editorial check 1`, naming the sections that differ and the investigator's corrections. `approve` closes the loop; any other verdict waits for the user.
    - Failed rewrite (a lost claim, a changed section): keep `design.md` as approved, append `audit | <date> | failed | <reason>` to `loop.md`, and close. Tell the user the audit failed and why. Run the auditor again only on the user's word.
 
-   Delete `design.rewritten.md` when the loop closes.
-5. **The round budget is a deadline, not a target.** It is 5 rounds, or the highest `rounds through <M>` in `loop.md`. The bar-raiser lands approve, approve-with-risks, or escalate by the last round. A `revise` or `reject-approach` there is out of contract: treat it as `escalate`, and put the round's open blocking objections to the user. Converging in 2 rounds because round 1 was thorough is the success case.
+   Delete `design.rewritten.md` and `design.pre-editorial.md` when the loop closes.
+5. **The round budget is a deadline, not a target.** It is 5 rounds, or the highest `rounds through <M>` in `loop.md` when that is more. The bar-raiser lands approve, approve-with-risks, or escalate by the last round. A `revise` or `reject-approach` there is out of contract: treat it as `escalate`, and put the round's open blocking objections to the user. Converging in 2 rounds because round 1 was thorough is the success case.
 
 ## Loop rules
 
@@ -112,13 +113,13 @@ Relay only slugs, round numbers, verdicts, and tasks. The substance travels thro
 - No agent plays another's role. The auditor touches prose only: technical verdicts never route through it, and its pass never reopens the review.
 - The editorial pass runs once per approved design, at the end. Prose churn between rounds breaks the bar-raiser's spot-checks for no quality gain.
 - **Brief corrections.** The agents call the requirement doc the brief. When one reports that it asserts something a source contradicts, put that to the user with the evidence and offer the `## Amendment` that fixes it, at the next stop or at the end. A factual correction does not pause or reopen the design. Never amend on your own. One the user accepts after approval runs as Amending after approval.
-- If the user agreed to commits, commit `<dir>` after each round, pass, and check. The agents write files and never commit.
+- If the user agreed to commits, commit `<dir>` after each round, pass, and check, with the root `README.md` when its row changed. The agents write files and never commit.
 - A round with no visible change (no revision-log entry, no new review section) means the loop is stuck: stop and tell the user which role stalled, and on what.
 - Keep the user posted between dispatches, one line each: which pass finished, its verdict, and what runs next. The full report comes at the end, or when the loop waits for them, or on a stall: the verdict, the file paths, and the residual risks. The objections stay in the files until then.
 
 ## When the loop waits for the user
 
-Four things stop the loop for a decision: `R0: not answerable`, a round's `escalate`, an editorial check that is not approved, and an amendment or review fix that reopens the design. Read [waiting.md](waiting.md) now: it has what to put to the user, their options, and the `D<n>` line to record in `loop.md`.
+Five things stop the loop for a decision: `R0: not answerable`, a round's `escalate` or a last-round `revise` that step 5 counts as one, an editorial check that is not approved, an amendment check that escalates, and an amendment or review fix that reopens the design. Read [waiting.md](waiting.md) now: it has what to put to the user, their options, and the `D<n>` line to record in `loop.md`.
 
 ## Amending after approval
 
@@ -126,7 +127,7 @@ Once a round approves, an amendment the user makes gets a scoped edit, not a reo
 
 1. **Snapshot.** Copy `design.md` to `design.pre-A<n>.md`. The bar-raiser checks the pass against it.
 2. **Pass.** Dispatch the investigator with `amendment A<n> pass 1`. It edits only what the amendment touches and logs `A<n>.1:`, naming every section it edited. If honoring the amendment needs more, it edits nothing and logs `A<n>.1: reopens the design`: the loop waits for the user.
-3. **Check.** Dispatch the bar-raiser with `amendment A<n> check 1`. It appends `## Amendment A<n> check 1` to `review.md`, ending in a `Verdict:` line. On `revise`, the investigator answers in pass 2 and the bar-raiser checks again; the second check lands approve, approve-with-risks, or escalate.
+3. **Check.** Dispatch the bar-raiser with `amendment A<n> check 1`. It appends `## Amendment A<n> check 1` to `review.md`, ending in a `Verdict:` line. On `revise`, the investigator answers in pass 2 and the bar-raiser checks again; the second check lands approve, approve-with-risks, or escalate. An `escalate` waits for the user, and so does a `revise` from the second check on.
 4. **Close.** Run Close and delete the snapshot. An edit this small gets no second editorial pass.
 
 ## Resuming
@@ -136,18 +137,19 @@ Once a round approves, an amendment the user makes gets a scoped edit, not a reo
 1. `/review-design` owns the open work: the last section of `review.md` is a `## Review <k>` or `## Review <k> check <p>` with no `Verdict:` line, or a `design.pre-V<k>.md` snapshot exists. Point the user to `/review-design <slug>`, which finishes it, and stop. Never dispatch a review or a review-fix check from here: those prompts are `/review-design`'s.
 2. The last section of `review.md` is a loop section (`## Round <N>`, `## Editorial check <k>` or `## Amendment A<n> check <p>`) with no `Verdict:` line: it is unfinished. Dispatch the bar-raiser for that same round or check, and say the section is unfinished. This comes before the states below because they read verdicts.
 3. No `design.md`, or no `R0:` entry in its revision log: round 0 is pending. Dispatch the investigator with `round 0`.
-4. The loop waits for the user ([waiting.md](waiting.md)) and `loop.md` has no decision line for this occurrence: put it to them. With a decision line, do what its column says, and read the states below with the verdict counted as that line makes it count.
+4. The loop is at a stop that [waiting.md](waiting.md) lists. With no decision line in `loop.md` for this occurrence, put it to the user. With `stop`, do what waiting.md says a resume does. With `continue` or `accept`, do what its column says unless the files show that is done, and read the states below with the verdict counted as that line makes it count.
 5. The last `## Round N` verdict is `revise` or `reject-approach`, and the revision log has no `R<N>:` entry: dispatch the investigator with `respond to round N`.
 6. Same verdict, and the `R<N>:` entry exists: dispatch the bar-raiser with `review round N+1`.
 7. The latest `(after approval)` amendment, `A<n>`, has no `A<n>.1:` entry: make its snapshot if it is missing, then dispatch the investigator with `amendment A<n> pass 1`.
-8. `A<n>` has more `A<n>.<p>:` entries than `## Amendment A<n> check` sections: dispatch the bar-raiser for the next check.
+8. `A<n>` has more `A<n>.<p>:` entries than `## Amendment A<n> check` sections, a `reopens the design` entry not counted: dispatch the bar-raiser for the next check.
 9. `A<n>`'s last check verdict is `revise`: dispatch the investigator for the next pass.
 10. The last round approved, and the revision log has no `editorial:` entry after its last `R<N>:` entry:
-    - the latest `audit` line in `loop.md` reads `failed`, with no `continue` decision after it: the loop is closed. Run Close.
+    - the latest `audit` line in `loop.md` reads `failed`, with no `continue` decision after it: the editorial pass is over. Go on to state 12.
+    - `design.pre-editorial.md` exists: the audit was clean and the adoption was cut off. Dispatch the investigator with `adopt the editorial pass` again.
     - otherwise delete any `design.rewritten.md`, because the report that says whether it is clean was lost with the session, and dispatch the auditor.
 11. That `editorial:` entry exists, `design.rewritten.md` is still there, and `review.md` has no `## Editorial check`: run the adoption diff from step 4 of the loop, and dispatch the bar-raiser with `editorial check 1` if anything differs or the entry reads `adopted with corrections`.
 12. The loop is closed, `design.md` still has a line starting `*Diagram:` above the marker, and `diagrams/architecture.excalidraw.svg` exists: look at the drawing (CLAUDE.md says how) and review it against the design. When it matches, or the user says to embed it anyway, dispatch the investigator with `embed the diagram`, then run Close.
-13. Otherwise the loop is closed. Delete a leftover `design.rewritten.md` and the snapshot of any amendment whose last check approved, then run Close.
+13. Otherwise the loop is closed. Delete a leftover `design.rewritten.md` or `design.pre-editorial.md`, and the snapshot of any amendment whose last check approved, then run Close.
 
 ## Close
 
