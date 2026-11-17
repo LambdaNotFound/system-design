@@ -8,4 +8,4 @@ A concept can have a crate too: `/implement-design <slug>` builds it in `src/<sl
 
 ## Index
 
-_None yet. Notes get added as designs need them, each with a line here._
+- [Follower reads](follower-reads.md): a read served by a non-leader replica at a timestamp it can prove complete, trading a few seconds of staleness for a local answer
