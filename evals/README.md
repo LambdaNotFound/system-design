@@ -17,9 +17,9 @@ scripts/eval-skills scope-problem --full --resume   # after a usage-limit stop: 
 
 `check-skills` runs on its own in the pre-commit hook whenever a commit touches a skill, a case or these scripts. An error blocks the commit; a warning doesn't.
 
-`eval-skills` makes real, billed model runs on your account through `claude plugin eval`. It prints what each target cost, and `--max-cost` sets a ceiling. On Opus in November 2026, a `--full` pass over the six `/scope-problem` cases cost $10.11, between $1.09 and $2.50 a case. It needs Claude Code 2.1.269 or later and git 2.31 or later; if the git first on your PATH is older, the script looks for a newer one in the usual places. Reports land in `evals/results/` beside the cases and are not committed.
+`eval-skills` makes real, billed model runs on your account through `claude plugin eval`. It prints what each target cost, and `--max-cost` sets a ceiling. On Opus in November 2026, a `--full` pass over the seven `/scope-problem` cases cost $10.50, between $0.92 and $2.35 a case, and took about 25 minutes. It needs Claude Code 2.1.269 or later and git 2.31 or later; if the git first on your PATH is older, the script looks for a newer one in the usual places. Reports land in `evals/results/` beside the cases and are not committed.
 
-Each case is its own runner call, so cases run one at a time; `-j` runs a case's runs at once. A run that hits the usage limit stops everything, because every run after it would fail at $0 too, and the script exits 2. Each finished case gets a line in `evals/results/ledger.jsonl`, keyed by a hash of the skill files and of the case with its fixtures, plus the mode and model. After the reset, rerun the same command with `--resume`: it skips what the ledger already has, and reruns a case whose files changed since.
+Each case is its own runner call, so cases run one at a time; `-j` runs a case's runs at once. A run that hits the usage limit stops everything, because every run after it would fail at $0 too, and the script exits 2. Each finished case gets a line in `evals/results/ledger.jsonl`, keyed by a hash of the skill files and of the case with the whole `evals/fixtures/` folder, plus the mode and model. After the reset, rerun the same command with `--resume`: it skips what the ledger already has, and reruns a case whose files changed since. An edit to any fixture stage changes every case's key, so `--resume` then reruns them all; to rerun one case, name it with `--case`.
 
 ## The flow
 
@@ -58,7 +58,9 @@ evals/
 │   ├── loop-closed/          rfc.md exported and the README row at Reviewed
 │   ├── loop-review-unfinished/ a /review-design review cut off before its verdict
 │   ├── impl-mapped/          the implementation loop's plan written, not yet approved
-│   └── impl-approved/        both of its stages approved and a small crate in src/, not yet closed
+│   ├── impl-approved/        both of its stages approved and a small crate in src/, not yet closed
+│   ├── concept-noted/        one concept note with the user's annotations, written before any design used it
+│   └── drill-open/           a /drill record with a hit, a miss and one question still open
 └── routing/                  a wrapper that loads every skill together
     ├── skills -> ../../.claude/skills
     └── evals/<case>/         which-skill-fires cases
@@ -67,7 +69,7 @@ evals/
 └── lint.py                   optional: the skill's own checks, run by check-skills
 ```
 
-The skills form a pipeline, so each skill's cases start from the stage before it: `/new-design` from `scoped/`, `/review-design` and `/implement-design` from `loop-closed/`. Add a stage when the first case needs it. Every stage is laid over `empty/` and holds only what differs, so a case names its stages in order: `place.sh scoped loop-approved loop-closed`.
+The skills form a pipeline, so each skill's cases start from the stage before it: `/new-design` from `scoped/`, `/review-design` and `/implement-design` from `loop-closed/`. `/write-concept` and `/drill` stand beside the pipeline: their cases start from `empty/`, from `loop-closed/`, or from a stage of their own laid over it (`concept-noted/`, `drill-open/`). Add a stage when the first case needs it. Every stage is laid over `empty/` and holds only what differs, so a case names its stages in order: `place.sh scoped loop-approved loop-closed`.
 
 `/new-design`, `/review-design` and `/implement-design` dispatch subagents, and a full loop is far too expensive to run as a test. Their cases are written to end before the first dispatch: they check what the skill says and does on the way in, and which state it resumes into. The one exception is `/review-design`'s artifact case, `focused-review-appends-to-ledger`, which runs a single bar-raiser. It lives in `routing/evals/` with the tag `cross-skill`, because the bar-raiser's role file is in `/new-design`'s folder. `/new-design`'s `announces-plan-before-dispatch` lives there too: the skill stops when a file it names is missing, and two of them are in sibling skills' folders, so a single-skill run stopped before the commit question.
 

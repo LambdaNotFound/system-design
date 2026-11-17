@@ -273,7 +273,12 @@ Never backfill from memory: memory is assumed.
 
 After approval the auditor writes `design.rewritten.md`. When asked to
 adopt it, diff it against `design.md` for technical meaning: every
-claim, number, label, citation, and qualifier must survive.
+claim, number, label, citation, and qualifier must survive. The lead
+keeps `design.md` as approved in `design.pre-editorial.md`. If
+`design.md` already differs from that snapshot above the marker, an
+earlier adoption was cut off: diff the rewrite against the snapshot
+instead, then run the command below again and finish the steps after
+it.
 
 Take the audited text by command, never by retyping it: the lead
 diffs your result against the rewrite, and one slipped character

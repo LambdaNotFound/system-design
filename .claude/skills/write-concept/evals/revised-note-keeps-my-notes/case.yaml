@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: revised-note-keeps-my-notes
+expected_outcome: |
+  A note exists with the user's annotations under My notes, written before any design used the
+  concept. Asked to add the rate limiter design, the skill links it on the Used in line, leaves
+  My notes exactly as it was, edits no design file, and keeps one index line.
+context:
+  scaffold_script: place-files.sh

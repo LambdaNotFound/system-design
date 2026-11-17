@@ -129,8 +129,13 @@ change behind.
 When `impl-run.md` has `Pass:` lines with commit SHAs, read what
 changed between passes with
 `git diff <earlier sha> <later sha> -- src/<slug>`. When they read
-`uncommitted`, there is no such diff: go by the Revision log's file
-lists, and read those files whole.
+`uncommitted`, there is no such diff. Compare the pass's manifest
+under `impl-checks/` with the one before it instead
+(`diff <dir>/impl-checks/T1.sha256 <dir>/impl-checks/R0.sha256`):
+every changed, new or missing line is a file to read whole, whatever
+the Revision log names. A file the manifests show changed and the log
+doesn't name is an objection. Without manifests, go by the Revision
+log's file lists, and read those files whole.
 
 ## The tests review
 
@@ -177,7 +182,10 @@ isn't.
 2. **Tests.** Every check is green in the round's record, which you
    have read, not assumed. The frozen tests are unchanged, or each
    change is named in the Revision log with a reason that holds: a
-   test weakened to fit the code is blocking. New behavior the frozen
+   test weakened to fit the code is blocking. Settle which changed
+   from the manifests, not from the log or file times: the newest `T`
+   manifest's lines under `src/<slug>/tests/` against the round's
+   manifest. With no manifests, say the check rests on the log. New behavior the frozen
    set didn't reach is covered.
 3. **Simplicity.** No more complex than the requirements force. No
    mechanism the approved plan doesn't list.
@@ -295,7 +303,8 @@ preamble and no restated code:
    lines.
 7. **Brief corrections**: anything the brief asserts that the code or
    a source contradicts, as `brief claim | what is true | evidence`,
-   or `none`.
+   or `none`. One that `impl-run.md` already has as a `C<n>` line is
+   logged: leave it out.
 8. **Escalation**: the paragraph, only under `escalate`.
 9. **Residual risks**: under `approve-with-risks`, one per line with
    its trigger.

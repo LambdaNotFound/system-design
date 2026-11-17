@@ -29,10 +29,10 @@ Files that go with this skill. If one is missing, stop and tell the user where i
 
 | File | Writer | Holds |
 | --- | --- | --- |
-| `impl-run.md` | you | plain `Key: value` lines: the run's facts, the user's approvals and decisions, one line per pass |
+| `impl-run.md` | you | plain `Key: value` lines: the run's facts, the user's approvals and decisions, the brief corrections, one line per pass |
 | `impl.md` | coding expert | the plan, then the revision log and the objection responses |
 | `impl-review.md` | bar-raiser | the append-only ledger: tests rounds, then review rounds |
-| `impl-checks/` | you | the record of each check run, one per author pass, and its logs, which git ignores |
+| `impl-checks/` | you | the record of each check run and the tree manifest, one each per author pass, and the logs, which git ignores |
 | `src/` | coding expert | the crate `src/<slug>/`, and the workspace's `Cargo.toml` and `Cargo.lock` |
 
 These files and the crate are the whole loop state. Every agent keeps nothing between invocations and rereads them each time. The brief is read where it is and never copied; the spec says which documents it is. A path written into `impl-run.md` is relative to the repository root, because the file is committed to a public repository.
@@ -85,9 +85,9 @@ After every pass, confirm it wrote its file: `impl.md` has the new plan or log e
 ## The loop
 
 1. **Map.** Dispatch the coding expert with `map`. It writes the plan in `impl.md` and no code. `blocked` or `split proposed` waits for the user.
-2. **Plan gate.** Show the user the plan in short, with the file's path: the mechanisms, the test plan, what the crate will not prove, and any dependency. On a yes, append `Plan approved: <date>, <N> amendments, <M> scope lines` to `impl-run.md`, with the counts from `impl.md`'s first line. A change they ask for goes into `impl-run.md` in their own words as a `Scope:` line, and the map runs again. A change to a requirement is not yours to make: point them to `/new-design <slug>`, which amends the requirement doc. No code is written without an approval line whose counts match the files.
+2. **Plan gate.** Show the user the plan in short, with the file's path: the mechanisms, the test plan, what the crate will not prove, and any dependency. Put every open brief correction to them with it (Loop rules). On a yes, append `Plan approved: <date>, <N> amendments, <M> scope lines` to `impl-run.md`, with the counts from `impl.md`'s first line. A change they ask for goes into `impl-run.md` in their own words as a `Scope:` line, and the map runs again. A change to a requirement is not yours to make: point them to `/new-design <slug>`, which amends the requirement doc. No code is written without an approval line whose counts match the files.
 3. **Tests stage, first pass.** Dispatch the coding expert with `write the tests`. It creates the workspace if needed, then the crate: types, signatures, `todo!()` bodies, and every test in the plan. It logs `T0:`.
-4. **Checks, after every author pass.** Run each command in `impl.md`'s `## Checks` block once, from `src/`, and write the record as the spec's Checks section says: `impl-checks/<label>.md`, with `<label>` the pass's log key. In the tests stage a pass means the crate compiles and every failing test fails at a `todo!()`. In the implementation stage it means everything is green. On `Result: fail`, dispatch the coding expert with `fix the failed checks: <record path>`, then run them again; a second failure waits for the user. Then, if the user agreed to commits, commit `<dir>` and `src/`. Append `Pass: <label> <commit SHA>` to `impl-run.md`, or `Pass: <label> uncommitted`.
+4. **Checks, after every author pass.** Write the tree manifest first, `impl-checks/<label>.sha256`, with the spec's command. Then run each command in `impl.md`'s `## Checks` block once, from `src/`, and write the record as the spec's Checks section says: `impl-checks/<label>.md`, with `<label>` the pass's log key. In the tests stage a pass means the crate compiles and every failing test fails at a `todo!()`. In the implementation stage it means everything is green. On `Result: fail`, dispatch the coding expert with `fix the failed checks: <record path>`, then run them again; a second failure waits for the user. Then, if the user agreed to commits, commit `<dir>` and `src/`. Append `Pass: <label> <commit SHA>` to `impl-run.md`, or `Pass: <label> uncommitted`.
 5. **Tests review, round N.** Dispatch the bar-raiser with `review tests round N`. It appends `## Tests round N` to `impl-review.md`, ending in a `Checked:` line and a `Verdict:` line:
    - `approve`: step 7.
    - `approve-with-risks`: step 7, unless the section has a should-fix objection and this is not the stage's last round. Then treat it as `revise`.
@@ -104,8 +104,8 @@ After every pass, confirm it wrote its file: `impl.md` has the new plan or log e
 - Never write `impl.md`, `impl-review.md`, or anything under `src/`. Never edit the brief.
 - No agent plays another's role. Disagreement between the author and the reviewer is signal: surface it, never smooth it.
 - The checks run once per author pass, by you. The author runs the tests it needs while it works, and the reviewer runs probes for its own questions.
-- With commits on, `git status --porcelain -- src/` prints nothing after a review pass. If it prints anything, the reviewer changed the tree: stop and show the user.
-- **Brief corrections.** When an agent reports that the brief asserts something the code or a source contradicts, put it to the user with the evidence, at the next stop or at the end. The fix is an amendment through `/new-design <slug>`, or a design fix through `/review-design <slug>`.
+- After a review pass, the spec's manifest command prints exactly the newest manifest, and with commits on, `git status --porcelain -- src/` prints nothing. Otherwise the reviewer changed the tree: stop and show the user.
+- **Brief corrections.** When an agent's return reports that the brief asserts something the code or a source contradicts, and no `C<n>` line has it yet, append it to `impl-run.md` in the agent's words: `C<n> | <date> | <pass or objection ID> | <brief claim> | <what is true>`. Put each one without a decision line to the user with the evidence at the next stop (the plan gate, or any wait below), or else at Close, and record the answer as a `D<n>` line. The fix is an amendment through `/new-design <slug>`, or a design fix through `/review-design <slug>`.
 - An amendment to the requirement doc, or a new `Scope:` line, while the loop is open sends it through the map and the plan gate again. The loop then resumes where the files say it was, and the bar-raiser's next round re-derives against the change.
 - Keep the user posted between passes, one line each: which pass finished, its result or verdict, and what runs next. The full report comes at the plan gate, at the end, or when the loop waits for them. The objections stay in the files until then.
 
@@ -119,9 +119,11 @@ Put the matter to them in one message: the author's question for `blocked`, the 
 - `accept`, on an escalation only: the user approves over the bar-raiser. The verdict counts as `approve-with-risks`, and the escalation paragraph travels as a residual risk.
 - `stop`: the loop ends where it is. Append `Closed: <date>, stopped`, leave the README row as it is, and report.
 
+A brief correction is answered with its `C<n>` as what the line answers, and one of three decisions. `as written`: the crate follows the brief's text, and the correction stays open for the amendment. `amend`: the loop pauses while the user amends through `/new-design <slug>`; the amendment then sends it through the map again. `stop`, as above. `continue` and `accept` answer the waits above, never a correction.
+
 ## Resuming
 
-`<dir>` and the crate are the checkpoint; no conversation context is needed. Read every file in `<dir>` and announce the state you resumed into, by name, so the user can correct it. Ask the commit question from Before the map before the session's first dispatch. Take the first state that matches:
+`<dir>` and the crate are the checkpoint; no conversation context is needed. Read every file in `<dir>` and announce the state you resumed into, by name, so the user can correct it, and name each `C<n>` line that has no decision line yet. Ask the commit question from Before the map before the session's first dispatch. Take the first state that matches:
 
 1. `impl-run.md` has a `Closed:` line: the loop is over. Report its result again, and never restart it. A crate gets one loop: more work on it is the user's to do, or to ask for directly.
 2. The ledger's last section has no `Verdict:` line, or no `Checked:` line: it is unfinished. Dispatch the bar-raiser for that same round.
@@ -145,4 +147,4 @@ Check that the newest check record reads `Result: pass`. Then:
 2. Append `Closed: <date>, <verdict>` to `impl-run.md`. It goes last, so a resume that finds it knows the README is done.
 3. Commit, only if the user agreed to commits.
 
-Report the verdict; the crate's path and the command that runs its tests; the rows the tests prove and the rows under Not proven here; the residual risks with their triggers, the follow-ups, and any brief correction still open; and the paths of `impl.md` and `impl-review.md`. Tell the user the crate is theirs to read by hand now, and that the frozen tests in `src/<slug>/tests/` are the place to start, since each names the row it proves. Name `/review-design <slug>` for any doubt about the design that the code exposed.
+Report the verdict; the crate's path and the command that runs its tests; the rows the tests prove and the rows under Not proven here; the residual risks with their triggers, the follow-ups, and each brief correction that is undecided or kept `as written`; and the paths of `impl.md` and `impl-review.md`. Tell the user the crate is theirs to read by hand now, and that the frozen tests in `src/<slug>/tests/` are the place to start, since each names the row it proves. Name `/review-design <slug>` for any doubt about the design that the code exposed.
