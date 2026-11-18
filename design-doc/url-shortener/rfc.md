@@ -36,9 +36,9 @@ The forcing question is how to make a link durable across regions before it's re
 | FR4 | Two long URLs count as the same URL throughout this doc when they are equal after RFC 3986 syntax-based and scheme-based normalization (https://www.rfc-editor.org/rfc/rfc3986#section-6.2), and as different otherwise. |
 | FR5 | A short URL never expires during the service's 10-year life and never changes its target, and no caller can edit or delete it. |
 | FR6 | Only an operator can disable a short URL, and within 5 minutes of the disable being recorded the service stops redirecting it, and so does every cache that honors the service's cache headers. |
-| FR7 | Only http and https URLs (the scheme in any case) that are valid under RFC 3986 and at most 2,048 characters long, both judged on the submitted URL as FR10 defines it, are accepted, and any other submission is rejected with the reason (assumed: 2,048 is a common practical limit, not a sourced one). |
+| FR7 | Only http and https URLs (the scheme in any case) that are valid under RFC 3986, have a non-empty host, and are at most 2,048 characters long, all judged on the submitted URL as FR10 defines it, are accepted, and any other submission is rejected with the reason (assumed: 2,048 is a common practical limit, not a sourced one). |
 | FR8 | Each client IP can submit only a limited number of URLs per hour, repeats of already-shortened URLs included, and submissions over that limit are rejected with the reason (assumed: the design sets the number). |
-| FR9 | A submission is rejected with the reason when its host, after FR4 normalization, is the service's own domain or a subdomain of it, when it contains a user or password part (even an empty one), or when it is the same URL (FR4) as one whose short URL is disabled, from the moment the disable is recorded. |
+| FR9 | A submission is rejected with the reason when its host, after FR4 normalization or as a browser resolves it (percent-escapes decoded and IDNA-mapped), is the service's own domain or a subdomain of it, when it contains a user or password part (even an empty one), or when it is the same URL (FR4) as one whose short URL is disabled, from the moment the disable is recorded. |
 | FR10 | A submitted URL containing non-ASCII characters is converted to a standard URL, with a punycode host and every other non-ASCII character percent-encoded as UTF-8, before any other rule applies, and the converted form counts as the submitted URL throughout this doc. |
 
 ### Non-functional Requirements
@@ -50,7 +50,7 @@ The forcing question is how to make a link durable across regions before it's re
 | NFR3 | **Redirect latency.** A redirect is answered within 100 ms at the 99th percentile, measured at the service (https://www.hellointerview.com/learn/system-design/problem-breakdowns/bitly). |
 | NFR4 | **Redirect availability.** Redirects are available 99.99% of the time, with lookups rejected under NFR8 counted as available, and keep working while creating new short URLs is failing. |
 | NFR5 | **Creation.** Creating a short URL completes within 1 second at the 99th percentile and is available 99.9% of the time. |
-| NFR6 | **Durability.** A short URL that has been returned to a caller, and a disable that has been recorded, are never lost, even when a whole region fails. |
+| NFR6 | **Durability.** A short URL that has been returned to a caller, and a disable that has been recorded, are never lost when a whole region fails. Loss from a bad write, a dropped table or a faulty migration is out of scope. |
 | NFR7 | **Correctness.** A short URL never redirects to a long URL that is not the same, per FR4, as the one it was created for. |
 | NFR8 | **Security.** A short code cannot be predicted from any other short code, and a client IP that looks up too many codes that do not exist within a window has every lookup rejected for a cool-off period (assumed: the design sets the window, the limit and the cool-off). |
 | NFR9 | **Operability.** Operators can see redirect and creation latency and error rates against NFR3, NFR4 and NFR5, are alerted when a target is breached, and can see how long each disable took to take effect across the service. |
@@ -140,11 +140,11 @@ pub fn canonicalize_v1(raw: &str) -> Result<(SubmittedUrl, UrlKey), Reject>;
 ```
 
 1. **Convert (FR10).** Only a host with non-ASCII goes through UTS #46 ToASCII, nontransitional, which maps case and applies NFC; other non-ASCII characters are percent-encoded as UTF-8. An ASCII host keeps its case, and a space stays invalid.
-2. **Validate (FR7).** Scheme `http` or `https` in any case, RFC 3986 grammar, at most 2,048 characters.
+2. **Validate (FR7).** Scheme `http` or `https` in any case, RFC 3986 grammar, a non-empty host, at most 2,048 characters.
 3. **Normalize (FR4).** Lowercase scheme and host, uppercase percent-encoding hex, decode unreserved escapes, remove dot-segments, drop the default port, and make an empty path `/`.
-4. **Reject (FR9), then hash.** Any `@` in the authority rejects. The normalized host, minus one trailing dot for this check only, must not be `s.example` or end in `.s.example`. Three inputs pass this check yet open at `s.example` (Open Question 5).
+4. **Reject (FR9), then hash.** Any `@` in the authority rejects. Neither the normalized host nor its current or transitional browser form (Appendix), minus one trailing dot here only, may be `s.example` or end in `.s.example`. A host with no browser form fails in browsers, so is judged normalized only. Residual risk: newer Unicode tables mapping a host to `s.example`; trigger: Task 1's diff finding one (Appendix).
 
-**Versioning.** Any change to step 3, a bug fix included, re-keys old URLs and gives them second codes (FR3), so v1 is frozen. Its specification is the tests in `src/url-shortener/tests/canonicalize.rs` and `src/url-shortener/src/canon.rs`, which also pin the implementation's choices: ports by value, hostless dot-segments and the WHATWG deny list. A change is a v2 with a backfill re-keying `url_index`. **Cons:** the parser and IDNA tables become part of the data format for ten years, and v2 has no cutover plan, a residual risk: v2 keys before the backfill ends give a URL a second code (FR3) and let a disabled one pass FR9, v1 keys until it ends race the backfill against live inserts, and a fix merging two v1 keys leaves two codes with no rule for which FR3 returns. Trigger: the first change failing one of those tests, which then needs its own RFC with phases and a merge rule.
+**Versioning.** Any change to step 3, a bug fix included, re-keys old URLs and gives them second codes (FR3), so v1 is frozen. Its specification is the tests in `src/url-shortener/tests/canonicalize.rs` and `src/url-shortener/src/canon.rs`, which also pin the implementation's ports by value and WHATWG deny list. Rejecting more inputs at step 2 or 4 changes no key: v1 stands, though tests pinning their acceptance flip. A change is a v2 with a backfill re-keying `url_index`. **Cons:** the parser and IDNA tables become part of the data format for ten years, and v2 has no cutover plan, a residual risk: v2 keys before the backfill ends give a URL a second code (FR3) and let a disabled one pass FR9, v1 keys until it ends race the backfill against live inserts, and a fix merging two v1 keys leaves two codes with no rule for which FR3 returns. Trigger: the first change to an accepted input's canonical form, which needs its own RFC with phases and a merge rule.
 
 ### Link Creation
 
@@ -316,13 +316,12 @@ Debug endpoints that:
 2. **Are the limits and load figures right?** Current design: assumed 100 creations an hour, 50 misses or sheds in 10 minutes, multiples of 4 and 16 at /56 and /48, a 1-hour cool-off, F = 64 with 16 for IPs with misses, an 80% cache hit rate, 50 ms per step 4 read, regions sized for half the peak. If they block real users, raise them; the Appendix prices each.
 3. **How do operators authenticate?** Current design: assumed existing single sign-on fronts the admin host. If none exists, the Admin API needs its own.
 4. **Does one cluster sustain 11,600 two-range transactions a second plus step 4?** Current design: assumed yes, scaled by nodes. If not, revisit the two-insert transaction first.
-5. **Should FR7 and FR9 reject URLs a browser opens at the service's own domain?** The literal text admits three, hostless, percent-encoded and soft-hyphen hosts (Appendix), the redirect loops FR9 exists to stop. Current design: assumed accepted per the literal text. Rejecting them, after an amendment, re-keys nothing.
 
 ## Work Breakdown
 
 | # | Task | Description | Depends on |
 | --- | --- | --- | --- |
-| 1 | Canonicalizer | `canonicalize_v1` and its frozen golden tests (FR4, FR7, FR9, FR10). | none |
+| 1 | Canonicalizer | `canonicalize_v1`, frozen golden tests, a UTS #46 diff per Unicode release (FR4, FR7, FR9, FR10). | none |
 | 2 | Link creation | Schema, the four-phase transaction, codes, a peak load test (FR1, FR3, FR5, NFR1, NFR2, NFR5, NFR6, NFR7, NFR8, NFR12). | Task 1, **CockroachDB cluster** (external, three regions) |
 | 3 | Redirect Resolver | Tiers, single-flight cache, bounded fallback, headers (FR2, FR6, NFR3, NFR4, NFR11). | Task 2 |
 | 4 | Abuse Limiter | Identities, counters, shed limit, `cooloffs` and its pull, step 4 slot split, fallback (FR8, NFR8). | Task 3 |
@@ -351,15 +350,21 @@ Under base36 a hit charges no miss, so a fast prober's 50 misses take 50 / (1 �
 
 **Shed limit on a shared prefix.** In that event, an attacker on a shared IPv4 address, or rotating /64s inside a carrier's /48 (800 sheds), puts the prefix on `503`s in that region for the rest of each window. NFR4 pays the prefix's share of the region's redirects: each 1% of all redirects it sends there costs 0.01 × 600 s = 6 s of the yearly 3,154 s per window, for the event's length, shown by shed-limit `503`s. While step 4 answers, the same rotation draws a cool-off instead, the blast radius in Edge and client identity.
 
-**Own-domain inputs (Open Question 5)** that FR7 and FR9's literal text accepts:
+**Own-domain inputs** that FR7 and FR9 accepted before the amendment of 11/18/26, each opening at `s.example` in a browser, and the step that now rejects each:
 
 ```text
-input                        passes because                            a browser opens
-http:///s.example/x          FR7's RFC 3986 grammar allows it          s.example
-http://%EF%BD%93.example/    FR9 judges the host escaped               s.example, decoded and mapped
-http://\u{AD}/s.example/x    ToASCII maps the soft hyphen (U+00AD)     s.example, as the hostless form
-                             to nothing, giving the hostless shape
+input                        a browser opens                 rejected by
+http:///s.example/x          s.example, slashes skipped      step 2, empty host (FR7)
+http:s.example/x             s.example, slashes skipped      step 2, no authority (FR7)
+http://\u{AD}/s.example/x    s.example, as the hostless      step 2: ToASCII maps the soft hyphen
+                             form stored by step 1           (U+00AD) to nothing, an empty host (FR7)
+http://%EF%BD%93.example/    s.example, decoded and mapped   step 4, browser form (FR9)
+http://s.ex%C2%ADample/      s.example, decoded and mapped   step 4, browser form (FR9)
+http://%E2%80%8Ds.example/   s.example, in a client that     step 4, transitional form (FR9)
+                             drops the joiner (U+200D)
 ```
+
+**Browser forms of a host** (step 4). Both decode the host's escapes as UTF-8. The current form then runs step 1's WHATWG domain-to-ASCII, UTS #46 nontransitional, as current Firefox, Safari and Chrome do. The transitional form first applies UTS #46's transitional pre-mapping, dropping U+200C and U+200D and mapping ß and ẞ to ss and ς to σ, then the same domain-to-ASCII, for any client still on IDNA2003-compatible processing. It exists for the joiners: CheckJoiners fails the current form of `%E2%80%8Ds.example`, so without it the host would be judged normalized only and accepted, while a transitional client opens `s.example`. Its cost is a host a current browser opens elsewhere, such as `paß.example`, rejected when the service's domain contains ss or σ; `s.example` holds neither. Neither form changes a key. What stays open is Unicode version skew: a code point unassigned in the crate's tables fails both forms, and a later version may map it into the domain. Task 1's diff lists each code point whose UTS #46 mapping into ASCII letters, digits, `-` or `.` differs between the crate's Unicode version and a release, and step 4 maps those as the release does, before both forms. That table only rejects, so it stays v1; a link created before an entry ships keeps its code, for an operator to disable (FR6), found by running the entry over `links`.
 
 **Step 4 capacity (assumed).** At an assumed 50 ms a consistent read, F = 64 slots confirm 64 / 0.05 = 1,280 a second per server.
 
