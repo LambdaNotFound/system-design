@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: deck-request-fires-make-deck
+expected_outcome: |
+  A request for slides from an existing design goes to make-deck, not to the skill that writes
+  designs, the one that critiques them, or the one that draws diagrams.
+context:
+  scaffold_script: place-files.sh

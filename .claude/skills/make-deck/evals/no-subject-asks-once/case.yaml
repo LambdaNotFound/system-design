@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: no-subject-asks-once
+expected_outcome: |
+  Nothing names what to present, and the repo has no designs. The skill asks what to present
+  from and writes nothing until it is answered.
+context:
+  scaffold_script: place-files.sh

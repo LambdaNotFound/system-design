@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: rfc-becomes-checked-deck
+expected_outcome: |
+  A closed design with an exported RFC and a 10-minute talk. The skill writes deck.md under the
+  design's deck/ folder, with a budget of about 7 slides, runs the check script until it reports
+  no errors, tries to render the PDF, and hands over the paths. It leaves the RFC untouched.
+context:
+  scaffold_script: place-files.sh
