@@ -141,5 +141,23 @@ class Render(unittest.TestCase):
         self.assertIn("Mermaid source", out)
 
 
+class Overflow(unittest.TestCase):
+    """Needs a local Chrome or Chromium; skipped without one."""
+
+    def test_a_long_code_block_is_reported(self):
+        # Regression: a code block shrank to fit the slide and clipped its own last
+        # lines, so the overflow check passed a slide that had lost content.
+        chrome = render_deck.find_chrome()
+        if not chrome:
+            self.skipTest("no Chrome or Chromium")
+        code = "\n".join(f"line {i}" for i in range(30))
+        deck = f"# T\n---\n## Fits\n- one\n---\n## Long code\n```\n{code}\n```\n"
+        fields, slides = render_deck.parse_deck(deck)
+        d = Path(tempfile.mkdtemp())
+        page = d / "deck.html"
+        page.write_text(render_deck.build_html(fields, slides, d, str(d), []), encoding="utf-8")
+        self.assertEqual(render_deck.overflowing(chrome, page), [3])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=0)

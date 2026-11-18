@@ -40,3 +40,6 @@ venv/
 # Check logs of the implementation loop: cargo prints absolute paths in them.
 # The record beside them, impl-checks/<label>.md, is committed.
 **/impl-checks/*.log
+
+# make-deck build output: render again from deck.md
+**/deck/*.pdf

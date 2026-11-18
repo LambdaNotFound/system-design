@@ -40,6 +40,10 @@ body { font-family: -apple-system, "Helvetica Neue", "Segoe UI", Arial, sans-ser
          display: flex; flex-direction: column; }
 .slide:last-child { page-break-after: auto; break-after: auto; }
 .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+/* Nothing but a figure shrinks: a shrunk code block clips itself, and the overflow check
+   would not see it. */
+.body > * { flex-shrink: 0; }
+.body > figure { flex-shrink: 1; }
 h1 { font-size: 46pt; font-weight: 650; margin: 0 0 0.25in; line-height: 1.15; }
 h2 { font-size: 34pt; font-weight: 650; margin: 0 0 0.3in; padding-bottom: 0.12in;
      border-bottom: 2px solid #d0d0d0; line-height: 1.2; }
