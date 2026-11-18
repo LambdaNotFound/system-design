@@ -40,3 +40,13 @@ People share links where length hurts: text messages, print, QR codes and charac
 | NFR10 | **Compatibility.** A short URL, once issued, keeps the same domain and code for the service's whole 10-year life, and resolves at them unless disabled (FR6). |
 | NFR11 | **Read-after-create.** From the moment a short URL is returned to the caller, every server that is serving redirects resolves it with no replication delay, unless it is disabled (FR6). |
 | NFR12 | **Length.** Every short code is at most 8 characters long. |
+
+## Amendment 11/18/26 (after approval)
+
+| ID | Requirement |
+| --- | --- |
+| FR7 | Only http and https URLs (the scheme in any case) that are valid under RFC 3986, have a non-empty host, and are at most 2,048 characters long, all judged on the submitted URL as FR10 defines it, are accepted, and any other submission is rejected with the reason (assumed: 2,048 is a common practical limit, not a sourced one). |
+| FR9 | A submission is rejected with the reason when its host, after FR4 normalization or as a browser resolves it (percent-escapes decoded and IDNA-mapped), is the service's own domain or a subdomain of it, when it contains a user or password part (even an empty one), or when it is the same URL (FR4) as one whose short URL is disabled, from the moment the disable is recorded. |
+| NFR6 | **Durability.** A short URL that has been returned to a caller, and a disable that has been recorded, are never lost when a whole region fails. Loss from a bad write, a dropped table or a faulty migration is out of scope. |
+
+Why: Review 1 (V1-7, V1-8) and Review 2 (V2-4). Hostless, percent-encoded and soft-hyphen hosts passed FR7 and FR9 yet open at the service's domain; NFR6 covers region loss only, by the user's decision.
