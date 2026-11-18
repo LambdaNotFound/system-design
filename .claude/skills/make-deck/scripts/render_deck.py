@@ -11,13 +11,24 @@ Chromium in headless mode: set CHROME_PATH to pick one, or the script looks in t
 places. Before printing it loads the page once more to find slides whose content overflows
 the page, and reports them; it prints the PDF either way, so the warning is the signal.
 
-A mermaid block is rendered to SVG when `mmdc` (mermaid-cli) is on PATH. Without it, the
-slide shows the Mermaid source as code and the script says so.
+A mermaid block is drawn by Mermaid itself, in the same browser, at one pinned version.
+The page loads it from a local copy when MERMAID_JS names one or the cache path below holds
+one, and otherwise from the jsDelivr CDN, which the browser checks against the pinned hash.
+A local copy is checked against the same hash before use. Offline, with no local copy, a
+diagram prints as its source and the script says so. To work offline, fetch the copy once:
+
+    mkdir -p ~/.cache/make-deck && curl -sL https://registry.npmjs.org/mermaid/-/mermaid-11.4.1.tgz \
+      | tar -xzO package/dist/mermaid.min.js > ~/.cache/make-deck/mermaid-11.4.1.min.js
+
+Each diagram is scaled to fill the space its slide leaves, up to 1.6 times its natural size;
+one scaled below 0.6 is reported, because its text is then too small to read.
 
 Exit codes: 0 rendered with no overflow; 1 rendered, but a slide overflows; 2 could not
 render (no browser, bad input).
 """
 import argparse
+import base64
+import hashlib
 import html
 import os
 import re
@@ -28,6 +39,11 @@ import tempfile
 from pathlib import Path
 
 PAGE_W, PAGE_H = "13.333in", "7.5in"   # 16:9
+
+MERMAID_VERSION = "11.4.1"
+MERMAID_SHA384 = "rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I"
+MERMAID_CDN = f"https://cdn.jsdelivr.net/npm/mermaid@{MERMAID_VERSION}/dist/mermaid.min.js"
+MERMAID_CACHE = Path.home() / ".cache" / "make-deck" / f"mermaid-{MERMAID_VERSION}.min.js"
 
 CSS = """
 @page { size: %(w)s %(h)s; margin: 0; }
@@ -43,7 +59,11 @@ body { font-family: -apple-system, "Helvetica Neue", "Segoe UI", Arial, sans-ser
 /* Nothing but a figure shrinks: a shrunk code block clips itself, and the overflow check
    would not see it. */
 .body > * { flex-shrink: 0; }
-.body > figure { flex-shrink: 1; }
+.body > figure, .body > .diagram { flex-shrink: 1; }
+.diagram { flex: 1; min-height: 1.5in; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; }
+.diagram > pre { flex-shrink: 0; align-self: stretch; }
+.diagram svg { max-width: none !important; }
 h1 { font-size: 46pt; font-weight: 650; margin: 0 0 0.25in; line-height: 1.15; }
 h2 { font-size: 34pt; font-weight: 650; margin: 0 0 0.3in; padding-bottom: 0.12in;
      border-bottom: 2px solid #d0d0d0; line-height: 1.2; }
@@ -76,11 +96,53 @@ figcaption { font-size: 12pt; color: #666; margin-top: 0.06in; text-align: cente
 .notes-page p, .notes-page li { font-size: 18pt; }
 """ % {"w": PAGE_W, "h": PAGE_H}
 
-# Marks every slide whose content does not fit, so --dump-dom can report it.
-OVERFLOW_JS = """
+# Draws the Mermaid diagrams, fits each to its slot, then marks every slide whose content
+# does not fit or whose diagram is too small to read, so --dump-dom can report them.
+PAGE_JS = """
 <script>
-window.addEventListener('load', () => {
-  document.querySelectorAll('.slide').forEach((s, i) => {
+async function drawDiagrams() {
+  const slots = Array.from(document.querySelectorAll('.diagram'));
+  if (!slots.length) return;
+  if (!window.mermaid) {
+    slots.forEach(d => { d.setAttribute('data-mermaid', 'missing');
+      d.insertAdjacentHTML('beforeend', '<p class="caption">Mermaid source: the library did not load</p>'); });
+    return;
+  }
+  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict',
+    fontFamily: getComputedStyle(document.body).fontFamily,
+    themeVariables: { fontSize: '20px', xyChart: { plotColorPalette: '#7a8594' } },
+    flowchart: { wrappingWidth: 320, nodeSpacing: 40, rankSpacing: 55, padding: 12 },
+    sequence: { actorFontSize: 20, messageFontSize: 20, noteFontSize: 18, wrap: false },
+    er: { fontSize: 18 },
+    state: { fontSize: 20 },
+    timeline: { padding: 12 },
+    xyChart: { width: 1000, height: 430, titleFontSize: 22, showTitle: true,
+      xAxis: { labelFontSize: 20, titleFontSize: 20 }, yAxis: { labelFontSize: 18, titleFontSize: 18 } } });
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    const src = slot.querySelector('code').textContent;
+    try {
+      const { svg } = await mermaid.render('mmd' + i, src);
+      slot.innerHTML = svg;
+      const el = slot.querySelector('svg');
+      const vb = el.viewBox && el.viewBox.baseVal;
+      const w = vb && vb.width ? vb.width : el.getBBox().width;
+      const h = vb && vb.height ? vb.height : el.getBBox().height;
+      const k = Math.min(slot.clientWidth / w, slot.clientHeight / h, 1.6);
+      el.setAttribute('width', w * k); el.setAttribute('height', h * k);
+      el.style.width = (w * k) + 'px'; el.style.height = (h * k) + 'px';
+      slot.setAttribute('data-mermaid', 'ok');
+      slot.setAttribute('data-scale', k.toFixed(2));
+    } catch (e) {
+      slot.setAttribute('data-mermaid', 'error');
+      slot.setAttribute('data-error', String(e && e.message || e).slice(0, 160));
+      document.querySelectorAll('[id^="dmmd' + i + '"]').forEach(n => n.remove());
+    }
+  }
+}
+window.addEventListener('load', async () => {
+  try { await drawDiagrams(); } catch (e) {}
+  document.querySelectorAll('.slide').forEach((s) => {
     const b = s.querySelector('.body') || s;
     if (b.scrollHeight > b.clientHeight + 2 || b.scrollWidth > b.clientWidth + 2) {
       s.setAttribute('data-overflow', 'yes');
@@ -90,6 +152,21 @@ window.addEventListener('load', () => {
 });
 </script>
 """
+
+
+def mermaid_source(warnings):
+    """Return (src, integrity) for the script tag: a verified local copy, else the CDN."""
+    local = os.environ.get("MERMAID_JS")
+    path = Path(local).expanduser() if local else MERMAID_CACHE
+    if path.exists():
+        digest = base64.b64encode(hashlib.sha384(path.read_bytes()).digest()).decode()
+        if digest == MERMAID_SHA384:
+            return path.resolve().as_uri(), None
+        warnings.append(f"{path} is not Mermaid {MERMAID_VERSION} (hash mismatch); using the CDN")
+    elif local:
+        warnings.append(f"MERMAID_JS names no file: {local}; using the CDN")
+    return MERMAID_CDN, "sha384-" + MERMAID_SHA384
+
 
 CHROME_CANDIDATES = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -222,20 +299,8 @@ def render_table(lines):
 
 
 def render_mermaid(source, workdir, index, warnings):
-    mmdc = shutil.which("mmdc")
-    if mmdc:
-        src = Path(workdir) / f"diagram-{index}.mmd"
-        dst = Path(workdir) / f"diagram-{index}.svg"
-        src.write_text(source, encoding="utf-8")
-        done = subprocess.run([mmdc, "-i", str(src), "-o", str(dst), "-b", "white"],
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-        if done.returncode == 0 and dst.exists():
-            return f'<figure><img src="{dst.as_uri()}" alt="diagram"></figure>'
-        warnings.append(f"mmdc failed on a mermaid block: {done.stdout.strip()[-200:]}")
-    else:
-        warnings.append("a mermaid block was shown as source: install mermaid-cli (mmdc) to draw it")
-    return ("<pre><code>" + html.escape(source) + "</code></pre>"
-            '<p class="caption">Mermaid source, not rendered</p>')
+    """A slot the page script replaces with the drawn diagram; until then, the source."""
+    return ('<div class="diagram"><pre><code>' + html.escape(source) + "</code></pre></div>")
 
 
 def render_body(body, base, workdir, warnings, counter):
@@ -329,9 +394,14 @@ def build_html(fields, slides, base, workdir, warnings, notes=False):
             continue
         content = render_body(body, base, workdir, warnings, counter)
         pages.append(f'<section class="slide"><div class="body">{content}</div>{footer}</section>')
+    script = ""
+    if counter[0]:
+        src, integrity = mermaid_source(warnings)
+        check = f' integrity="{integrity}" crossorigin="anonymous"' if integrity else ""
+        script = f'<script src="{html.escape(src)}"{check}></script>'
     return ("<!doctype html><html><head><meta charset='utf-8'>"
             f"<title>{html.escape(title)}</title><style>{CSS}</style></head><body>"
-            + "\n".join(pages) + OVERFLOW_JS + "</body></html>")
+            + "\n".join(pages) + script + PAGE_JS + "</body></html>")
 
 
 # ---------------------------------------------------------------- browser
@@ -359,20 +429,45 @@ def chrome_args(chrome):
     return args
 
 
-def overflowing(chrome, html_path):
-    done = subprocess.run(chrome_args(chrome) + ["--virtual-time-budget=5000", "--dump-dom",
+def inspect(chrome, html_path):
+    """Load the page once and report what its script found, or None if it did not run."""
+    done = subprocess.run(chrome_args(chrome) + ["--virtual-time-budget=15000", "--dump-dom",
                                                  html_path.as_uri()],
                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, universal_newlines=True,
-                          timeout=120)
+                          timeout=180)
     dom = done.stdout
     if 'data-checked="yes"' not in dom:
         return None
-    slides = re.findall(r'<section class="slide[^"]*"([^>]*)>', dom)
-    return [n for n, attrs in enumerate(slides, 1) if 'data-overflow="yes"' in attrs]
+    found = {"overflow": [], "small": [], "missing": [], "errors": []}
+    parts = re.split(r'(<section class="slide[^"]*"[^>]*>)', dom)
+    n = 0
+    for i in range(1, len(parts), 2):
+        n += 1
+        tag, inner = parts[i], parts[i + 1] if i + 1 < len(parts) else ""
+        if 'data-overflow="yes"' in tag:
+            found["overflow"].append(n)
+        for attrs in re.findall(r'<div class="diagram"([^>]*)>', inner):
+            state = re.search(r'data-mermaid="(\w+)"', attrs)
+            state = state.group(1) if state else "missing"
+            if state == "missing":
+                found["missing"].append(n)
+            elif state == "error":
+                err = re.search(r'data-error="([^"]*)"', attrs)
+                found["errors"].append((n, html.unescape(err.group(1)) if err else "unknown error"))
+            else:
+                scale = re.search(r'data-scale="([\d.]+)"', attrs)
+                if scale and float(scale.group(1)) < 0.6:
+                    found["small"].append((n, float(scale.group(1))))
+    return found
+
+
+def overflowing(chrome, html_path):
+    found = inspect(chrome, html_path)
+    return None if found is None else found["overflow"]
 
 
 def print_pdf(chrome, html_path, pdf_path):
-    done = subprocess.run(chrome_args(chrome) + ["--no-pdf-header-footer", "--virtual-time-budget=5000",
+    done = subprocess.run(chrome_args(chrome) + ["--no-pdf-header-footer", "--virtual-time-budget=15000",
                                                  f"--print-to-pdf={pdf_path}", html_path.as_uri()],
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True,
                           timeout=180)
@@ -412,7 +507,7 @@ def main():
     if not chrome:
         print("render_deck: no Chrome or Chromium found. Install one, or set CHROME_PATH to its binary.")
         return 2
-    over = overflowing(chrome, html_path)
+    found = inspect(chrome, html_path)
     ok, log = print_pdf(chrome, html_path, out)
     if not ok:
         print("render_deck: the browser wrote no PDF:\n" + log.strip()[-600:])
@@ -426,12 +521,25 @@ def main():
           + (f", and {out.with_suffix('.notes.pdf').name}" if a.notes else ""))
     for w in sorted(set(warnings)):
         print(f"  warn   {w}")
-    if over is None:
-        print("  warn   the overflow check did not run; look at every slide in the PDF")
-    elif over:
-        print(f"  error  content overflows the page on slide {', '.join(map(str, over))}: cut it or split the slide")
-        return 1
-    return 0
+    if found is None:
+        print("  warn   the page checks did not run; look at every slide in the PDF")
+        return 0
+    status = 0
+    if found["missing"]:
+        slides_ = ", ".join(map(str, sorted(set(found["missing"]))))
+        print(f"  warn   Mermaid did not load, so the diagrams on slide {slides_} printed as source:"
+              " go online, or set MERMAID_JS (see the script's help)")
+    for n, err in found["errors"]:
+        print(f"  error  slide {n}: the Mermaid diagram does not parse: {err}")
+        status = 1
+    for n, k in found["small"]:
+        print(f"  warn   slide {n}: the diagram is drawn at {k:.2f} of its size, too small to read:"
+              " cut nodes, shorten labels, or give it the slide alone")
+    if found["overflow"]:
+        print(f"  error  content overflows the page on slide {', '.join(map(str, found['overflow']))}:"
+              " cut it or split the slide")
+        status = 1
+    return status
 
 
 if __name__ == "__main__":

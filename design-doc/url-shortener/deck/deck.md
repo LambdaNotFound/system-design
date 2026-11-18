@@ -41,27 +41,36 @@ Notes: Estimates, from NFR1's 100 million links a day and 10 redirects per link.
 
 ## Eight random base62 characters stay unguessable at 365 billion links
 
-| Alphabet | Space | Fraction live |
-| --- | --- | --- |
-| base36 | 2.82 × 10^12 | 12.9% |
-| base62 | 2.18 × 10^14 | 0.167% |
+```mermaid
+xychart-beta
+    title "Share of 8-character codes live at 365 billion links (%)"
+    x-axis [base32, base36, base62]
+    y-axis "% live" 0 --> 40
+    bar [33.2, 12.9, 0.167]
+```
 
-- base62 leaves one live code per 598 probes; base36, one per 8
-- Inserts rarely retry: a fresh code collides with p <= 0.00167
+One live code per 598 probes for base62, against 8 for base36
 
-Notes: Estimates and Appendix, alphabet against density. NFR12 caps codes at 8 characters, and NFR8 says a code can't be predicted from another. Base62 is forced.
-
+Notes: Estimates and Appendix, alphabet against density. NFR12 caps codes at 8 characters, and NFR8 says a code can't be predicted from another, so base62 is forced. Inserts rarely retry: a fresh code collides with p <= 0.00167.
 ---
 
-## One CockroachDB cluster across three regions owns the invariants
+## Three regions share one CockroachDB cluster that survives a region
 
-- 5 replicas placed 2+2+1 outlive any one region (NFR6)
-- A transaction makes both inserts atomic (FR3)
-- Follower reads serve redirects locally (NFR3, NFR4)
-- A leaseholder read settles a local miss (NFR11)
-- **Cost**: self-operated, a cross-region write, 5× storage
+```mermaid
+flowchart LR
+    C([Client]) -->|nearest healthy region| LB
+    subgraph A[Region A]
+        LB[L4 load balancer] --> R[Redirect Resolver + cache]
+        LB --> H[Create Handler]
+        R -->|follower read| L[(Local replica)]
+    end
+    R -.->|local miss| LH[(Leaseholders)]
+    H -->|commit, 3 of 5 replicas| BC[Regions B and C]
+```
 
-Notes: Overview, and Data model and storage. The MVP choice is SURVIVE REGION FAILURE with REGIONAL BY TABLE. The fatal invariants, NFR6, NFR7 and FR3, are the database's job. The architecture drawing is still to be drawn; the RFC's Diagram line says what it shows.
+Regions B and C run the same fleet
+
+Notes: Overview, and the RFC's Diagram brief: the drawing itself is still to come. The MVP choice is SURVIVE REGION FAILURE with REGIONAL BY TABLE: 5 replicas placed 2+2+1 outlive any one region (NFR6), a transaction makes both inserts atomic (FR3), follower reads serve redirects locally (NFR3, NFR4), and a leaseholder read settles a local miss (NFR11). Each region also runs a counter store for the Abuse Limiter, and a Disable Tracker probes the servers (NFR9). The cost: a self-operated cluster, a cross-region write, 5× storage.
 
 ---
 
@@ -98,15 +107,18 @@ Notes: Redirect Resolver, steps 1 to 4. Step 1 checks the cool-off and miss coun
 
 ---
 
-## Staleness can hide a link, never misdirect it
+## A disable stops every redirect in 90 s, inside FR6's 300 s
 
-- URLs never change (FR5): stale reads only miss
-- Servers honor a disable in 90 s: 30 s lag plus 60 s cache
-- Browsers add 60 s: 150 s against FR6's 300 s
-- A tracker pages past 90 s (NFR9)
+```mermaid
+timeline
+    title A disable recorded at time t
+    t : An operator disables the code
+    t + 5 s : A resubmission of the URL is rejected (FR9)
+    t + 90 s : Every server answers 410
+    t + 150 s : Browser caches let go
+```
 
-Notes: Estimates, disable budget; Redirect Resolver, staleness; Disables. Expiry alone meets FR6, so there's no push invalidation. Cache-Control is private, max-age=60, and a 302 isn't cached heuristically.
-
+Notes: Example, Estimates (disable budget) and Disables. In the RFC's Example, a code disabled at 10:00:00 stops redirecting everywhere by 10:01:30, and a resubmission at 10:00:05 fails. Servers honor a disable within S + T = 30 + 60 = 90 s, and browsers add M = 60 s: 150 s against FR6's 300 s, so expiry alone meets FR6. Staleness can hide a link but never misdirect it, because a URL never changes (FR5). The Disable Tracker measures each disable and pages past 90 s (NFR9).
 ---
 
 ## Abuse limits hold a prober to 14.4 live codes a day
@@ -136,13 +148,15 @@ Notes: Alternatives Considered. Also rejected: a truncated hash, since anyone ca
 
 ## A region failure costs a 90 s drain, not data
 
-- One region down: 3 of 5 replicas remain (NFR6)
-- A partition: uncached lookups get `503` until the drain, about 120 s
-- Two regions down is beyond NFR6: creation and disables stop
-- A slow local replica drains its region
+```mermaid
+flowchart LR
+    F[Region fails] --> H[Health checks fail, 3 × 10 s]
+    H --> D[DNS TTL runs out, 60 s]
+    D --> S[Two regions serve all traffic]
+    F -.->|no write lost| K[(3 of 5 replicas remain)]
+```
 
-Notes: Failure Modes and Observability. NFR4's 99.99% allows 3,154 s of failed lookups a year, about 78 drains (assumed even traffic split, clients honoring the 60 s DNS TTL). A break-glass flag lifts S if two regions fail, suspending FR6 and NFR11.
-
+Notes: Failure Modes and Observability, and the Appendix. A partition first waits S = 30 s before its reads fail, so it drains in about 120 s, serving 503 to uncached lookups meanwhile. Two regions down is beyond NFR6: creation and disables stop. A slow local replica fails the health check, so its region drains too. NFR4's 99.99% allows 3,154 s of failed lookups a year, about 78 drains.
 ---
 
 ## The open risks are abuse and unmeasured load
@@ -164,6 +178,18 @@ Notes: Residual risks from review round 5, approve-with-risks. Triggers: step 4 
 - **Then**: resolver, limiter, disables, deployment
 
 Notes: Open Questions 1 and 2, and the Work Breakdown, riskiest first. Task 2 depends on a three-region CockroachDB cluster. Open Question 4 asks whether one cluster sustains 11,600 two-range transactions a second plus step 4.
+
+---
+
+## Backup: the cluster owns the invariants
+
+- 5 replicas placed 2+2+1 outlive any one region (NFR6)
+- A transaction makes both inserts atomic (FR3)
+- Follower reads serve redirects locally (NFR3, NFR4)
+- A leaseholder read settles a local miss (NFR11)
+- **Cost**: self-operated, a cross-region write, 5× storage
+
+Notes: Overview, and Data model and storage. The MVP choice is SURVIVE REGION FAILURE with REGIONAL BY TABLE. The fatal invariants, NFR6, NFR7 and FR3, are the database's job. The architecture drawing is still to be drawn; the RFC's Diagram line says what it shows.
 
 ---
 
@@ -193,8 +219,7 @@ CREATE TABLE url_index (
 );
 ```
 
-Notes: Data model and storage. Rows of 124 B and 40 B total 299 TB with 5 replicas at Xu's assumed 100 B URL, 3.85 PB at FR7's maximum. disables and cooloffs are the other two tables.
-
+Notes: Data model and storage. url_key is the SHA-256 of canonicalize_v1's output. Rows of 124 B and 40 B total 299 TB with 5 replicas at Xu's assumed 100 B URL, 3.85 PB at FR7's maximum. cooloffs is the fourth table.
 ---
 
 ## Backup: creation as a sequence
@@ -205,12 +230,12 @@ sequenceDiagram
     participant H as Create Handler
     participant DB as CockroachDB
     C->>H: POST /v1/links {url}
-    H->>DB: BEGIN; read url_index[key]
+    H->>DB: BEGIN, read url_index[key]
     alt key found
         DB-->>H: code c
         H-->>C: 200 {c}
     else key absent
-        H->>DB: insert links, url_index; COMMIT
+        H->>DB: insert links and url_index, COMMIT
         H-->>C: 201 {fresh}
     end
 ```

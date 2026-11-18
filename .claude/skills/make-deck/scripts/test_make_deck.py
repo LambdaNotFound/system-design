@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Unit tests for check_deck.py and render_deck.py's parsing and HTML. No browser needed."""
+import os
 import sys
 import tempfile
 import unittest
@@ -96,6 +97,18 @@ class CheckDeck(unittest.TestCase):
         errors, _ = run(backup.replace("slides: 4", "slides: 2"))
         self.assertEqual(errors, [])
 
+    def test_mermaid_has_its_own_limits(self):
+        diagram = "```mermaid\nflowchart LR\n" + "\n".join(f"  A{i} --> A{i+1}" for i in range(20)) + "\n```"
+        slide = "\n---\n\n## The flow\n\n" + diagram + "\n\nNotes: Overview.\n"
+        errors, _ = run(GOOD + slide)
+        self.assertEqual(errors, [])
+        long = diagram.replace("```\n", "", 0).replace("\n```", "\n" + "\n".join(f"  B{i} --> B{i+1}" for i in range(10)) + "\n```")
+        errors, _ = run(GOOD + slide.replace(diagram, long))
+        self.assertTrue(any("Mermaid diagram of" in e for e in errors), errors)
+        wordy = slide.replace("## The flow", "## The flow\n\n- " + "word " * 25)
+        errors, _ = run(GOOD + wordy)
+        self.assertTrue(any("beside a diagram" in e for e in errors), errors)
+
     def test_missing_image(self):
         errors, _ = run(GOOD.replace("Notes: Overview.", "![arch](nope.svg)\n\nNotes: Overview."))
         self.assertTrue(any("image not found" in e for e in errors), errors)
@@ -134,11 +147,43 @@ class Render(unittest.TestCase):
         self.assertEqual(html.count("<section"), 3)
         self.assertNotIn("Link Creation.", html)
 
-    def test_mermaid_without_mmdc_falls_back_to_source(self):
+    def test_mermaid_block_becomes_a_slot_holding_its_source(self):
+        out = render_deck.render_mermaid("sequenceDiagram\nA->>B: x", tempfile.mkdtemp(), 1, [])
+        self.assertIn('<div class="diagram">', out)
+        self.assertIn("A-&gt;&gt;B: x", out)
+
+    def test_no_local_copy_uses_the_pinned_cdn_with_its_hash(self):
+        old = os.environ.pop("MERMAID_JS", None)
+        saved, render_deck.MERMAID_CACHE = render_deck.MERMAID_CACHE, Path(tempfile.mkdtemp()) / "none.js"
+        try:
+            src, integrity = render_deck.mermaid_source([])
+        finally:
+            render_deck.MERMAID_CACHE = saved
+            if old is not None:
+                os.environ["MERMAID_JS"] = old
+        self.assertIn("mermaid@" + render_deck.MERMAID_VERSION, src)
+        self.assertEqual(integrity, "sha384-" + render_deck.MERMAID_SHA384)
+
+    def test_a_local_copy_with_the_wrong_hash_is_not_used(self):
+        fake = Path(tempfile.mkdtemp()) / "mermaid.min.js"
+        fake.write_text("window.mermaid = {};", encoding="utf-8")
+        old = os.environ.get("MERMAID_JS")
+        os.environ["MERMAID_JS"] = str(fake)
         warnings = []
-        out = render_deck.render_mermaid("sequenceDiagram\nA->>B: x", tempfile.mkdtemp(), 1, warnings) \
-            if not render_deck.shutil.which("mmdc") else "Mermaid source"
-        self.assertIn("Mermaid source", out)
+        try:
+            src, integrity = render_deck.mermaid_source(warnings)
+        finally:
+            if old is None:
+                del os.environ["MERMAID_JS"]
+            else:
+                os.environ["MERMAID_JS"] = old
+        self.assertTrue(src.startswith("https://"))
+        self.assertTrue(any("hash mismatch" in w for w in warnings), warnings)
+
+    def test_no_script_tag_without_a_diagram(self):
+        fields, slides = render_deck.parse_deck(GOOD)
+        page = render_deck.build_html(fields, slides, Path("."), tempfile.mkdtemp(), [])
+        self.assertNotIn("<script src=", page)
 
 
 class Overflow(unittest.TestCase):
@@ -157,6 +202,53 @@ class Overflow(unittest.TestCase):
         page = d / "deck.html"
         page.write_text(render_deck.build_html(fields, slides, d, str(d), []), encoding="utf-8")
         self.assertEqual(render_deck.overflowing(chrome, page), [3])
+
+
+class Diagrams(unittest.TestCase):
+    """Needs a local Chrome or Chromium. The drawing test also needs MERMAID_JS set to a
+    verified copy of the pinned Mermaid; without one it is skipped."""
+
+    def page(self, body):
+        fields, slides = render_deck.parse_deck("# T\n---\n" + body)
+        d = Path(tempfile.mkdtemp())
+        page = d / "deck.html"
+        page.write_text(render_deck.build_html(fields, slides, d, str(d), []), encoding="utf-8")
+        return page
+
+    def chrome(self):
+        chrome = render_deck.find_chrome()
+        if not chrome:
+            self.skipTest("no Chrome or Chromium")
+        return chrome
+
+    def local_mermaid(self):
+        path = os.environ.get("MERMAID_JS")
+        if not path or not render_deck.mermaid_source([])[0].startswith("file:"):
+            self.skipTest("MERMAID_JS does not name a verified copy of the pinned Mermaid")
+
+    def test_a_diagram_is_drawn_and_a_broken_one_reported(self):
+        chrome = self.chrome()
+        self.local_mermaid()
+        good = "## Flow\n```mermaid\nflowchart LR\n  A[Client] --> B[Server]\n```\n"
+        bad = "---\n## Broken\n```mermaid\nflowchart LR\n  A --> -->\n```\n"
+        found = render_deck.inspect(chrome, self.page(good + bad))
+        self.assertEqual(found["missing"], [])
+        self.assertEqual([n for n, _ in found["errors"]], [3])
+
+    def test_without_the_library_the_diagram_is_reported_missing(self):
+        chrome = self.chrome()
+        old = os.environ.get("MERMAID_JS")
+        os.environ["MERMAID_JS"] = "/nonexistent/mermaid.js"
+        saved, render_deck.MERMAID_CDN = render_deck.MERMAID_CDN, "file:///nonexistent/mermaid.js"
+        try:
+            found = render_deck.inspect(chrome, self.page("## Flow\n```mermaid\nflowchart LR\n  A --> B\n```\n"))
+        finally:
+            render_deck.MERMAID_CDN = saved
+            if old is None:
+                del os.environ["MERMAID_JS"]
+            else:
+                os.environ["MERMAID_JS"] = old
+        self.assertEqual(found["missing"], [2])
 
 
 if __name__ == "__main__":

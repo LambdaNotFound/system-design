@@ -14,7 +14,8 @@ What it checks:
 - the slide budget: main slides (before a slide titled Backup or Appendix) within `slides:`
   from the front matter, else 13;
 - per slide: at most 6 bullets, at most 45 words of body text outside code and tables,
-  code blocks of at most 14 lines, tables of at most 7 rows and 4 columns;
+  code blocks of at most 14 lines, tables of at most 7 rows and 4 columns; a Mermaid
+  diagram of at most 24 lines, alone on its slide but for 20 words of title and caption;
 - fidelity: every number of two or more digits, and every requirement ID (FR3, NFR11, LLD1),
   appears in the source, so the deck states nothing the doc does not;
 - no em or en dashes in slide text;
@@ -30,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from render_deck import parse_deck, slide_title  # noqa: E402
 
 MAX_BULLETS, MAX_WORDS, MAX_CODE, MAX_ROWS, MAX_COLS = 6, 45, 14, 7, 4
+MAX_MERMAID, MAX_DIAGRAM_WORDS = 24, 20   # a diagram slide: its source, and the words beside it
 DEFAULT_SLIDES = 13   # 20 minutes, the default talk
 BACKUP = re.compile(r"^(backup|appendix)\b", re.I)
 NUMBER = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
@@ -39,12 +41,14 @@ IMAGE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
 
 def strip_code_and_tables(body):
     """Return (prose_lines, code_blocks, tables): prose excludes fenced code and table rows."""
-    prose, code, tables, block, table, fenced = [], [], [], [], [], False
+    prose, code, tables, block, table, fenced, lang = [], [], [], [], [], False, ""
     for line in body.splitlines():
         if line.lstrip().startswith("```"):
             if fenced:
-                code.append(block)
+                code.append((lang, block))
                 block = []
+            else:
+                lang = line.strip()[3:].strip()
             fenced = not fenced
             continue
         if fenced:
@@ -120,16 +124,28 @@ def check(deck_path, source_path=None):
             main += 1
 
         prose, code, tables = strip_code_and_tables(body)
+        diagrams = [b for lang, b in code if lang == "mermaid"]
         text = [l for l in prose if not re.match(r"^\s*#{1,3}\s", l)]
         bullets = sum(1 for l in text if re.match(r"^\s*([-*]|\d+\.)\s+", l))
         if bullets > MAX_BULLETS:
             errors.append(f"{where}: {bullets} bullets; the limit is {MAX_BULLETS}")
         words = len(re.sub(r"!\[[^\]]*\]\([^)]*\)", "", " ".join(text)).split())
-        if words > MAX_WORDS:
+        if diagrams and words > MAX_DIAGRAM_WORDS:
+            errors.append(f"{where}: {words} words beside a diagram; the limit is {MAX_DIAGRAM_WORDS}:"
+                          " the diagram is the content, the rest goes to notes")
+        elif words > MAX_WORDS:
             errors.append(f"{where}: {words} words outside code and tables; the limit is {MAX_WORDS}")
-        for block in code:
-            if len(block) > MAX_CODE:
+        for lang, block in code:
+            if lang == "mermaid":
+                if len(block) > MAX_MERMAID:
+                    errors.append(f"{where}: a Mermaid diagram of {len(block)} lines; the limit is "
+                                  f"{MAX_MERMAID}: split it, or draw less")
+            elif len(block) > MAX_CODE:
                 errors.append(f"{where}: a code block of {len(block)} lines; the limit is {MAX_CODE}")
+        if len(diagrams) > 1:
+            errors.append(f"{where}: {len(diagrams)} Mermaid diagrams; a slide holds one")
+        if diagrams and len(code) + len(tables) > 1:
+            errors.append(f"{where}: a Mermaid diagram shares its slide with code or a table")
         for table in tables:
             rows = [r for r in table if not re.fullmatch(r"\s*\|?[\s:|-]+\|?\s*", r)]
             cols = max(len(r.strip().strip("|").split("|")) for r in rows) if rows else 0
