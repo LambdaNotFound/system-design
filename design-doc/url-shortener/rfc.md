@@ -70,7 +70,7 @@ The forcing question is how to make a link durable across regions before it's re
 ## Estimates
 
 - **Rates.** NFR1: 100,000,000 / 86,400 s = 1,157 creations and 11,574 redirects a second, 11,600 and 116,000 at peak, sizing the regions below.
-- **Code space.** 62^8 = 2.18 × 10^14 codes, 0.167% full at NFR2's 365 × 10^9 links: one live code in 598, so inserts rarely retry. Base36 would be 12.9% full (Appendix), a live link every 8 probes (NFR8), so base62 is forced.
+- **Code space.** 62^8 = 2.18 × 10^14 codes, 0.167% full at NFR2's 365 × 10^9 links: one live code in 598, so inserts rarely retry. Base36 would be 12.9% full (Appendix). NFR8 allows that, so base62 is chosen for enumeration yield, not forced: at the Appendix's cycle, 49.5 live codes an hour under base36 against 14.4 a day under base62. Its cost is in Link Creation.
 - **Storage (assumed).** At Xu's assumed 100 B URL, rows of 124 B and 40 B total 299 TB with 5 replicas, 3.85 PB at FR7's maximum (Appendix), so the store is range-sharded and the index keys on a 32 B hash.
 - **Disable budget.** FR6 allows 300 s. Replica staleness S + cache TTL T = 30 + 60 = 90 s for servers, plus browser `max-age` M = 60 s = 150 s, so expiry alone meets FR6.
 - **Headroom and step 4 load (assumed).** A drain moves a region's third onto two, raising each by half, so each region is sized for 116,000 / 2 = 58,000 redirects a second. At an 80% hit rate, 11,600 reach the store, against 1,280 that one server's step 4 confirms (Appendix), so a slow replica drains the region (Draining).
@@ -79,7 +79,7 @@ The forcing question is how to make a link durable across regions before it's re
 
 ### Overview
 
-This RFC defines a three-region service that writes each link in one cross-region transaction before returning it, and answers each redirect from a server cache or the local replica, reading consistently only when that replica lacks the code. The store is CockroachDB, set to survive a region failure; codes are 8 random base62 characters. NFR3, NFR4 and NFR5 rest on figures assumed until load-tested. A wide botnet can fail fresh codes, and one prober can cut off a shared address or prefix for an hour, or for a window in a region whose step 4 fails (Abuse Limiter).
+This RFC defines a three-region service that writes each link in one cross-region transaction before returning it, and answers each redirect from a server cache or the local replica, reading consistently only when that replica lacks the code. The store is CockroachDB, set to survive a region failure; codes are 8 random base62 characters. NFR3, NFR4 and NFR5 rest on figures assumed until load-tested. Redirects outlive failed creation through a lease move shorter than S, or quorum loss for at most 90 s, not store overload or a bad deploy of their shared fleet, and the region holding every leaseholder is unsized (Failure Modes). A wide botnet can fail fresh codes, and one prober can cut off a shared address or prefix for an hour, or for a window in a region whose step 4 fails (Abuse Limiter).
 
 *Diagram: three regions, each with an L4 load balancer, a stateless fleet (Redirect Resolver with cache, Create Handler, Admin API), a counter store and CockroachDB nodes of one 2+2+1 cluster. Arrows: DNS to a healthy region; redirect to cache, local replica, then dashed to leaseholders; create committed across two regions; the Disable Tracker probing servers. Label S, T and M.*
 
@@ -147,9 +147,9 @@ pub fn canonicalize_v1(raw: &str) -> Result<(SubmittedUrl, UrlKey), Reject>;
 1. **Convert (FR10).** Only a host with non-ASCII goes through UTS #46 ToASCII, nontransitional, which maps case and applies NFC; other non-ASCII characters are percent-encoded as UTF-8. An ASCII host keeps its case, and a space stays invalid.
 2. **Validate (FR7).** Scheme `http` or `https` in any case, RFC 3986 grammar, at most 2,048 characters.
 3. **Normalize (FR4).** Lowercase scheme and host, uppercase percent-encoding hex, decode unreserved escapes, remove dot-segments, drop the default port, and make an empty path `/`.
-4. **Reject (FR9), then hash.** Any `@` in the authority rejects. The normalized host, minus one trailing dot for this check only, must not be `s.example` or end in `.s.example`.
+4. **Reject (FR9), then hash.** Any `@` in the authority rejects. The normalized host, minus one trailing dot for this check only, must not be `s.example` or end in `.s.example`. Three inputs pass this check yet open at `s.example` (Open Question 5).
 
-**Versioning.** Any change to step 3, a bug fix included, re-keys old URLs and gives them second codes (FR3), so v1 is frozen behind golden tests; a change is a v2 with a backfill re-keying `url_index`. **Cons:** the parser and IDNA tables become part of the data format for ten years.
+**Versioning.** Any change to step 3, a bug fix included, re-keys old URLs and gives them second codes (FR3), so v1 is frozen. Its specification is the tests in `src/url-shortener/tests/canonicalize.rs` and `src/url-shortener/src/canon.rs`, which also pin the implementation's choices: ports by value, hostless dot-segments and the WHATWG deny list. A change is a v2 with a backfill re-keying `url_index`. **Cons:** the parser and IDNA tables become part of the data format for ten years, and v2 has no cutover plan, a residual risk: v2 keys before the backfill ends give a URL a second code (FR3) and let a disabled one pass FR9, v1 keys until it ends race the backfill against live inserts, and a fix merging two v1 keys leaves two codes with no rule for which FR3 returns. Trigger: the first change that fails one of those tests, which then needs its own RFC with phases and a merge rule.
 
 ### Link Creation
 
@@ -189,18 +189,18 @@ sequenceDiagram
     C->>H: POST /v1/links {url}
     H->>L: charge client IP (FR8)
     H->>H: canonicalize_v1
-    H->>DB: BEGIN; read url_index[key]
+    H->>DB: BEGIN, read url_index[key]
     alt key found
         DB-->>H: code c, links[c]
         H-->>C: 200 {c}, or 400 disabled
     else key absent
-        H->>DB: insert links[fresh], url_index[key]; COMMIT
+        H->>DB: insert links[fresh], url_index[key], COMMIT
         DB-->>H: committed on 3 of 5 replicas
         H-->>C: 201 {fresh}
     end
 ```
 
-**Pros:** FR3, NFR6 and NFR7 hold by construction, and codes reveal nothing about others (NFR8). **Cons:** each creation pays cross-region round trips; NFR5 is assumed until Task 2's load test.
+**Pros:** FR3, NFR6 and NFR7 hold by construction, and codes reveal nothing about others (NFR8). **Cons:** each creation pays cross-region round trips; NFR5 is assumed until Task 2's load test. Codes are case-sensitive, a cost the Problem Statement's own media pay: a mis-cased typed or printed link is another code, whose `404` counts toward the reader's miss limit, and a QR code can't use alphanumeric mode, which lacks lower case, so its symbol is larger. Base36 avoids both at 49.5 live codes an hour per prober (Estimates); base62 loses if typed and printed links outweigh that yield, and only before launch, since NFR10 freezes issued codes.
 
 ### Redirect Resolver
 
@@ -228,7 +228,7 @@ Step 4, confirm: absent, error or timeout: read_consistent(code), 100 ms
                  a shed if step 3 found the code absent.
 ```
 
-**Why each tier.** Single-flight fill limits a viral code to one store read per server per T. Step 3 keeps the common path in-region (NFR3) and off the write quorum (NFR4). Step 4 exists for NFR11: a code returned a moment ago may not be on this replica yet, so a local miss is never final or cached. It crosses regions, so NFR3 assumes steps 2 and 3 answer 99% of redirects.
+**Why each tier.** Single-flight fill limits a viral code to one store read per server per T. Step 3 keeps the common path in-region (NFR3) and off the write quorum and the leaseholders, so redirects outlive creation failing from their loss (NFR4, bounded in Failure Modes). Step 4 exists for NFR11: a code returned a moment ago may not be on this replica yet, so a local miss is never final or cached. It crosses regions, so NFR3 assumes steps 2 and 3 answer 99% of redirects.
 
 **Staleness (FR6).** An entry filled at t reflects the store at t − S or later and serves until t + T, and a browser keeps the `302` M more (Estimates). `private` keeps shared caches out, and `302`, unlike `301`, isn't cached heuristically.
 
@@ -286,7 +286,7 @@ At 09:00:00 a caller in region B submits `HTTPS://Example.com:443/a/../b`, store
 
 - **One primary region, asynchronous replicas.** Pro: local writes, simplest operations. Con: a region loss drops unreplicated writes, so a returned link can vanish (NFR6).
 - **DynamoDB global tables, multi-Region strong consistency.** Pro: managed, RPO zero across three regions, and conditional puts give FR3 without transactions: code item first, then URL key, so a crash or lost race leaves only an unreturned code for an FR4-equal URL (NFR7), which the winner's disable misses. Con: strongly consistent reads cross regions, a round trip per uncached redirect (NFR3); eventually consistent reads have no staleness bound or lag metric, so a lagging replica can serve a disabled code past FR6's 5 minutes.
-- **CockroachDB `GLOBAL` tables.** Pro: consistent local reads everywhere, so step 4 disappears. Con: writes pay a commit-wait, which the docs aim at rarely updated data, not 11,600 inserts a second (NFR5).
+- **CockroachDB `GLOBAL` tables for `links`.** Pro: every replica reads consistently and locally, so a local miss is final. That deletes step 4, its F slots, the clean and dirty pools, shed counting and the wide-botnet residual, makes NFR11 hold by construction, and lets a disable take effect with no S. Con: every write waits out a commit-wait of about the closed-timestamp lead, the maximum clock offset plus a propagation allowance (the docs suggest 800 ms or more past a 150 ms RTT), on top of the creation's own cross-region round trips, and a lost FR3 race reruns Phase 1. That leaves little of NFR5's 1 s p99, assumed until Task 2's load test; if a `GLOBAL` creation fits it on Open Question 1's regions, the choice flips.
 
 ### Read path
 
@@ -294,9 +294,10 @@ At 09:00:00 a caller in region B submits `HTTPS://Example.com:443/a/../b`, store
 
 ## Failure Modes and Observability
 
-Five failure modes matter; metrics follow.
+Six failure modes matter; metrics follow.
 
-- **A region fails.** Each range keeps 3 of 5 replicas, so reads and writes continue (NFR6); DNS drains the region onto the survivors in about 90 s, and its leases move.
+- **A region fails.** Each range keeps 3 of 5 replicas, so reads and writes continue (NFR6); DNS drains the region onto the survivors in about 90 s, and any leases it held move, pausing creation and step 4 on them until they do. Residual risk: `REGIONAL BY TABLE` homes every leaseholder of `links` and `url_index` in the primary region, which serves all creation and step 4 reads besides its own redirects, though Estimates sizes regions for redirects only. When it fails, every lease moves at once onto a survivor sized for none of them. Trigger: home-region leaseholder load in Task 2's load test, and the lease-move pause in Task 6's drill.
+- **Creation fails.** Steps 2 and 3 need neither the write quorum nor a leaseholder, so NFR4's clause holds through a lease move shorter than S, but after quorum loss only for S, and cached codes for S + T = 90 s (Two regions fail). Two causes sharing the redirect path are residual risks. Store overload: FR8 limits each identity, not their sum, so many identities past NFR1's 11,600 a second, doubled by the timed-out retry below, slow every voter step 3 reads until step 3 passes 20 ms in every region, health endpoints fail, and Route 53's fail-open sends uncached lookups to the overloaded leaseholders; trigger: creation rate over 11,600 a second while step 3 latency rises. A bad creation deploy: the Create Handler shares the redirect fleet and deploy, so a crash or bad build takes redirects down wherever it rolls out; trigger: redirect `5xx` or health failures starting during a rollout.
 - **A region is partitioned.** Past S it reads neither locally nor consistently: uncached lookups get `503` until it drains, about 120 s (Appendix).
 - **Two regions fail.** Beyond NFR6: creation and disables stop, and redirects fail once caches expire and local reads pass S. The break-glass, a logged operator flag, lifts S, suspending FR6 and NFR11.
 - **The store is slow.** A local replica past step 3's 20 ms drains its region (Draining). A slow leaseholder fails fresh and unknown codes with `503`; a client shed past the limit loses that region until its window ends, or, with a miss of its own, gets the hour's cool-off (Abuse Limiter). Creation retries a timed-out transaction once, safe under FR3.
@@ -305,7 +306,7 @@ Five failure modes matter; metrics follow.
 Metrics that track:
 
 - Redirect and creation latency by region and status, and availability (non-`5xx` over all), with burn-rate alerts at 99.99% and 99.9% (NFR3, NFR4, NFR5, NFR9).
-- Follower staleness, step 3 timeouts, step 4 rate and rejections over F, cache hit rate.
+- Follower staleness, step 3 timeouts, step 4 rate and rejections over F, cache hit rate; creation rate against NFR1's 11,600 a second peak, and rollouts marked on redirect availability.
 - Misses, sheds, shed-limit `503`s, active cool-offs, those started mostly by sheds, and counter-store fallback per region; lookups rejected per cool-off, paging when a /56 or /48 cool-off rejects over 16 /64s without misses, which NFR4's count hides.
 - `server_effective_at − disabled_at` per disable (NFR9); the tracker's heartbeat age, paging past 1 minute; `Integrity` aborts.
 
@@ -319,6 +320,7 @@ Debug endpoints that:
 2. **Are the limits and load figures right?** Current design: assumed 100 creations an hour, 50 misses or sheds in 10 minutes, multiples of 4 and 16 at /56 and /48, a 1-hour cool-off, F = 64 with 16 for IPs with misses, an 80% cache hit rate, 50 ms per step 4 read, regions sized for half the peak. If they block real users, raise them; the Appendix prices each.
 3. **How do operators authenticate?** Current design: assumed existing single sign-on fronts the admin host. If none exists, the Admin API needs its own.
 4. **Does one cluster sustain 11,600 two-range transactions a second plus step 4?** Current design: assumed yes, scaled by nodes. If not, revisit the two-insert transaction first.
+5. **Should FR7 and FR9 reject URLs a browser opens at the service's own domain?** The literal text admits three: hostless URLs such as `http:///s.example/x`, which FR7's RFC 3986 grammar allows; percent-encoded hosts such as `http://%EF%BD%93.example/`, which FR9 judges escaped while a browser decodes and maps them to `s.example`; and a host of only a soft hyphen (U+00AD) before `/s.example/x`, which ToASCII maps to nothing, giving the hostless shape. These are the redirect loops FR9 exists to stop. Current design: assumed accepted per the literal text. Rejecting them after an amendment is a validation rule that re-keys nothing.
 
 ## Work Breakdown
 
@@ -329,7 +331,7 @@ Debug endpoints that:
 | 3 | Redirect Resolver | Tiers, single-flight cache, bounded fallback, headers (FR2, FR6, NFR3, NFR4, NFR11). | Task 2 |
 | 4 | Abuse Limiter | Identities, counters, shed limit, `cooloffs` and its pull, step 4 slot split, fallback (FR8, NFR8). | Task 3 |
 | 5 | Disables | Admin API, disable transaction, internal lookup, tracker (FR6, FR9, NFR9). | Task 3 |
-| 6 | Deployment | DNS health checks, the health endpoint, PROXY protocol, the fixed domain (NFR4, NFR10). | Task 3 |
+| 6 | Deployment | DNS health checks, the health endpoint, PROXY protocol, the fixed domain, a region-isolation drill (drain, lease-move pause, home-region failover) (NFR4, NFR10). | Task 3 |
 | 7 | Metrics and alerts | The metrics and alerts above (NFR9). | Tasks 3, 4, 5 |
 
 ## Appendix
@@ -342,6 +344,8 @@ base32    1.10 × 10^12    33.2%          3 probes
 base36    2.82 × 10^12    12.9%          8 probes
 base62    2.18 × 10^14    0.167%         598 probes
 ```
+
+Under base36 a hit charges no miss, so a fast prober's 50 misses take 50 / (1 − 0.1294) = 57.4 probes, and its hour-long cycle (Enumeration under the limits) is 3 × (57.4 + 70) = 382 probes, 382 × 0.1294 = 49.5 live codes an hour.
 
 **Minor rivals.** No server cache: removes T from FR6's budget, but a viral code's reads concentrate on one range's replicas. Push invalidation: takedown in seconds, but a pub/sub fleet that falls back to expiry, which already meets FR6.
 
