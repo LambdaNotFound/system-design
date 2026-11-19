@@ -1,7 +1,7 @@
 ---
 type: regex
 target: last_message
-pattern: "[Ss]liding window[\\s\\S]*[Ff]ail open|[Ff]ail open[\\s\\S]*[Ss]liding window"
+pattern: "[Ss]liding[- ]window[\\s\\S]*[Ff]ail(s|ing)? open|[Ff]ail(s|ing)? open[\\s\\S]*[Ss]liding[- ]window"
 weight: 1
 ---
 
