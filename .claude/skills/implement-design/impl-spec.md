@@ -8,6 +8,7 @@
 - The crate: layout and conventions
 - The two stages: tests first, then the logic
 - Checks: the manifest, the commands, the record, and what passes
+- An amendment round: a closed crate brought up to a later amendment
 
 This file is the contract for what `/implement-design` produces. The
 coding expert shapes the plan and the crate to it, the bar-raiser
@@ -234,3 +235,13 @@ What passes:
 
 `Result:` is `pass` or `fail`. On `fail`, the lead sends the record's
 path back to the author once, then runs the checks again.
+
+## An amendment round
+
+A loop that closed reopens for an `## Amendment ... (after approval)` section the requirement doc gained after it, one round per amendment: round `A<n>` for the doc's n-th `## Amendment` section. The round runs both stages again on the crate that exists, for what the amendment changes and nothing else.
+
+- **Labels.** Every log key, check label, manifest and ledger heading in the round carries its prefix: `A<n>.T0`, `A<n>.R1`, `impl-checks/A<n>.T0.md`, `## A<n> tests round 1`, `## A<n> round 1`. Objection IDs are `A<n>.T<round>-<k>` and `A<n>.R<round>-<k>`.
+- **The map** revises `impl.md` in place and updates its `Covers:` line. A `### A<n>` paragraph at the end of the Test plan names the rows the amendment changes, the mechanisms it touches, and each test it adds or changes.
+- **Tests stage.** The author adds the tests the amendment needs and rewrites the frozen tests whose rows it rewords, naming each in `A<n>.T0:` with its row, and writes no logic. The checks pass when fmt and clippy exit 0, the crate compiles, every test the entry names fails, and every other test passes. The record's `Passed against stubs:` line reads `Passed before the change:` and lists any named test that already passes: it asserts nothing the amendment added.
+- **Implementation stage** as in a first loop: every command exits 0, and the tests the round's tests stage approved are frozen.
+- **Review.** The reviewer derives against the amendment and reviews what the round changed, and any test outside it that changed. The rest of the crate was approved by the loop that closed.

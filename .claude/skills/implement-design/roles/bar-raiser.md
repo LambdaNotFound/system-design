@@ -9,6 +9,7 @@
 - Verify
 - The tests review
 - The implementation review
+- An amendment round
 - The review ledger
 - Convergence
 - Write early
@@ -202,6 +203,10 @@ isn't.
 Leave at least one substantive comment every round, approvals
 included: what is done well and why it holds, or the one risk worth
 watching. A blanket approval teaches nothing.
+
+## An amendment round
+
+A prompt whose `Round:` line names `A<n>` reviews a crate reopened for that amendment. Read the spec's An amendment round: your headings are `## A<n> tests round <N>` and `## A<n> round <N>`, and your objection IDs carry the prefix. Derive against the amendment, then review what the round changed and any test outside it that changed. In the tests round, a test the round names that already passes before the change is an objection: it doesn't prove the amendment.
 
 ## The review ledger
 

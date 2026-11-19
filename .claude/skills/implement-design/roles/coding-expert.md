@@ -7,6 +7,7 @@
 - The map: before any code
 - The tests stage
 - The implementation stage
+- An amendment round
 - Evidence rules
 - Objections
 - Write early
@@ -143,6 +144,10 @@ exists. `respond to tests round <N>` answers its objections
   code, and none justifying your changes to the reviewer.
 - Leave no `todo!()` behind. Work you chose not to do is a Follow-ups
   line, not a stub.
+
+## An amendment round
+
+A prompt whose `Round:` line names `A<n>` reopens a crate whose loop closed. Read the spec's An amendment round: it sets the labels, so your log keys are `A<n>.T0`, `A<n>.R1` and so on, and what each stage writes. The map revises `impl.md` in place for the amendment. The tests stage adds and rewrites only the tests the amendment's rows need, and leaves the logic as it is. Outside what the amendment touches, the crate stays as approved.
 
 ## Evidence rules
 

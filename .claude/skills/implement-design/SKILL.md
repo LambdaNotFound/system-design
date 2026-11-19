@@ -51,6 +51,7 @@ Read <role file> in full before anything else, and follow it.
 Loop directory: <dir>
 Slug: <slug>
 Task: <task>
+Round: <A<n> in an amendment round, or none>
 Brief: <paths>
 Impl spec: <path of impl-spec.md>
 Rust checklist: <path of review-rust.md>
@@ -87,7 +88,7 @@ After every pass, confirm it wrote its file: `impl.md` has the new plan or log e
 1. **Map.** Dispatch the coding expert with `map`. It writes the plan in `impl.md` and no code. `blocked` or `split proposed` waits for the user.
 2. **Plan gate.** Show the user the plan in short, with the file's path: the mechanisms, the test plan, what the crate will not prove, and any dependency. Put every open brief correction to them with it (Loop rules). On a yes, append `Plan approved: <date>, <N> amendments, <M> scope lines` to `impl-run.md`, with the counts from `impl.md`'s first line. A change they ask for goes into `impl-run.md` in their own words as a `Scope:` line, and the map runs again. A change to a requirement is not yours to make: point them to `/new-design <slug>`, which amends the requirement doc. No code is written without an approval line whose counts match the files.
 3. **Tests stage, first pass.** Dispatch the coding expert with `write the tests`. It creates the workspace if needed, then the crate: types, signatures, `todo!()` bodies, and every test in the plan. It logs `T0:`.
-4. **Checks, after every author pass.** Write the tree manifest first, `impl-checks/<label>.sha256`, with the spec's command. Then run each command in `impl.md`'s `## Checks` block once, from `src/`, and write the record as the spec's Checks section says: `impl-checks/<label>.md`, with `<label>` the pass's log key. In the tests stage a pass means the crate compiles and every failing test fails at a `todo!()`. In the implementation stage it means everything is green. On `Result: fail`, dispatch the coding expert with `fix the failed checks: <record path>`, then run them again; a second failure waits for the user. Then, if the user agreed to commits, commit `<dir>` and `src/`. Append `Pass: <label> <commit SHA>` to `impl-run.md`, or `Pass: <label> uncommitted`.
+4. **Checks, after every author pass.** Write the tree manifest first, `impl-checks/<label>.sha256`, with the spec's command. Then run each command in `impl.md`'s `## Checks` block once, from `src/`, and write the record as the spec's Checks section says: `impl-checks/<label>.md`, with `<label>` the pass's log key. In the tests stage a pass means the crate compiles and every failing test fails at a `todo!()` (in an amendment round, the spec's An amendment round says what passes). In the implementation stage it means everything is green. On `Result: fail`, dispatch the coding expert with `fix the failed checks: <record path>`, then run them again; a second failure waits for the user. Then, if the user agreed to commits, commit `<dir>` and `src/`. Append `Pass: <label> <commit SHA>` to `impl-run.md`, or `Pass: <label> uncommitted`.
 5. **Tests review, round N.** Dispatch the bar-raiser with `review tests round N`. It appends `## Tests round N` to `impl-review.md`, ending in a `Checked:` line and a `Verdict:` line:
    - `approve`: step 7.
    - `approve-with-risks`: step 7, unless the section has a should-fix objection and this is not the stage's last round. Then treat it as `revise`.
@@ -121,11 +122,19 @@ Put the matter to them in one message: the author's question for `blocked`, the 
 
 A brief correction is answered with its `C<n>` as what the line answers, and one of three decisions. `as written`: the crate follows the brief's text, and the correction stays open for the amendment. `amend`: the loop pauses while the user amends through `/new-design <slug>`; the amendment then sends it through the map again. `stop`, as above. `continue` and `accept` answer the waits above, never a correction.
 
+## Amending after close
+
+An `## Amendment ... (after approval)` section that `impl.md`'s `Covers:` line doesn't count reopens a closed crate as round `A<n>`, the doc's n-th `## Amendment` section; the oldest goes first. The spec's An amendment round defines its labels, stages and checks.
+
+1. **The design comes first.** With an RFC in the brief, `review.md`'s last `## Amendment A<n> check` must read `approve` or `approve-with-risks`. Otherwise point the user to `/new-design <slug>` and stop.
+2. **Say what runs:** the map for A<n>, the plan gate, both stages at 2 rounds each, up to 9 deep subagent runs. Ask the commit question. `git status --porcelain -- src/` must print nothing, or show the user and stop.
+3. **Reopen.** Append `Reopened: <date>, A<n>` to `impl-run.md` and run the loop from step 1, with `Round: A<n>` in every dispatch. Its `Plan approved:` line follows the `Reopened:` line, and Close writes `Closed: <date>, <verdict>, A<n>`.
+
 ## Resuming
 
-`<dir>` and the crate are the checkpoint; no conversation context is needed. Read every file in `<dir>` and announce the state you resumed into, by name, so the user can correct it, and name each `C<n>` line that has no decision line yet. Ask the commit question from Before the map before the session's first dispatch. Take the first state that matches:
+`<dir>` and the crate are the checkpoint; no conversation context is needed. Read every file in `<dir>` and announce the state you resumed into, by name, so the user can correct it, and name each `C<n>` line that has no decision line yet. Ask the commit question from Before the map before the session's first dispatch. Take the first state that matches. In an amendment round, the states read only what follows its `Reopened:` line, and the entries, records and sections with its prefix.
 
-1. `impl-run.md` has a `Closed:` line: the loop is over. Report its result again, and never restart it. A crate gets one loop: more work on it is the user's to do, or to ask for directly.
+1. `impl-run.md`'s last `Closed:` or `Reopened:` line is a `Closed:` line. With an amendment the `Covers:` line doesn't count, run Amending after close. Otherwise the loop is over: report its result again, and never restart it. More work on the crate, beyond an amendment, is the user's to do, or to ask for directly.
 2. The ledger's last section has no `Verdict:` line, or no `Checked:` line: it is unfinished. Dispatch the bar-raiser for that same round.
 3. No `impl.md`, or its `Covers:` line counts fewer amendments or `Scope:` lines than the files have: the map is pending.
 4. No `Plan approved:` line with the counts on `impl.md`'s first line: the plan gate is pending. Show the plan and wait.

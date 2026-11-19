@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: amendment-after-close-reopens
+expected_outcome: |
+  The implementation loop closed with approve, and afterwards an `## Amendment ... (after approval)`
+  was appended to requirement.md, carried into rfc.md, and approved by an `## Amendment A1 check` in review.md. impl.md's Covers line counts 0 amendments,
+  so the crate does not cover it. The skill resumes into an amendment round for the closed crate:
+  it names amendment A1 as uncovered and says the map runs again for it, then asks the commit
+  question before any dispatch. It does not report the loop as over and stop.
+context:
+  scaffold_script: place-files.sh
