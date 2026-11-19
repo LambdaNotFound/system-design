@@ -50,12 +50,21 @@ impl UrlKey {
 pub enum Reject {
     /// The scheme is syntactically valid but is not `http` or `https` (FR7).
     BadScheme,
-    /// No valid scheme, a string outside RFC 3986's `URI` rule, or a host
-    /// that UTS #46 ToASCII rejects (FR7, FR10).
+    /// No valid scheme, a string outside RFC 3986's `URI` rule, no authority
+    /// or an empty host, or a host that UTS #46 ToASCII rejects (FR7, FR10).
+    /// The host is judged on the submitted URL, so one that ToASCII maps to
+    /// nothing, such as a lone soft hyphen, is empty.
     InvalidUrl,
     /// More than 2,048 characters after FR10's conversion (FR7).
     TooLong,
-    /// The host is `s.example` or a subdomain of it, after FR4 (FR9).
+    /// The host, one trailing dot ignored, is `s.example` or a subdomain of
+    /// it, either after FR4 or in one of its browser forms: its escapes
+    /// decoded as UTF-8, then WHATWG domain to ASCII, as is (the current form)
+    /// or after UTS #46's transitional pre-mapping (the transitional form). A
+    /// host with no browser form is judged after FR4 only (FR9).
+    ///
+    /// See design-doc/url-shortener/rfc.md, Canonicalizer, step 4, and
+    /// Appendix, Browser forms of a host.
     OwnDomain,
     /// The authority holds a user or password part, even an empty one (FR9).
     Userinfo,
@@ -79,8 +88,10 @@ impl Reject {
 
 /// Converts, validates, normalizes and checks `raw`, returning the submitted
 /// URL and its key. Steps, in order: convert (FR10), validate (FR7: scheme
-/// present, scheme `http`/`https`, RFC 3986 grammar, length), normalize (FR4),
-/// reject (FR9: userinfo, then own domain), hash.
+/// present, scheme `http`/`https`, RFC 3986 grammar, a non-empty host,
+/// length), normalize (FR4), reject (FR9: userinfo, then own domain, judged on
+/// the normalized host and on its current and transitional browser forms),
+/// hash. The browser forms only reject: neither enters the canonical form.
 ///
 /// Frozen: `url_index` keys depend on its output. Any change to its output,
 /// a bug fix included, re-keys stored URLs and is a v2 with a backfill.
@@ -508,23 +519,6 @@ fn truncate_last_segment(output: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn key(raw: &str) -> UrlKey {
-        canonicalize_v1(raw)
-            .unwrap_or_else(|r| panic!("{raw:?} rejected as {r:?}"))
-            .1
-    }
-
-    /// NFR7: a hostless path keeps its dot-segments, so its canonical form
-    /// can never spell an authority URL and share that URL's key.
-    #[test]
-    fn hostless_path_never_turns_into_an_authority() {
-        assert_eq!(
-            canonical_form_v1("http:/.//x/y").map(|(_, f)| f),
-            Ok("http:/.//x/y".to_owned())
-        );
-        assert_ne!(key("http:/.//x/y"), key("http://x/y"));
-    }
 
     /// FR10 with the WHATWG deny list: a non-ASCII host whose mapping yields
     /// a delimiter is invalid rather than re-cut into other components.

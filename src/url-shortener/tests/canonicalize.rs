@@ -101,6 +101,19 @@ fn assert_accepted(raw: &str) {
     }
 }
 
+/// `None` when `raw` gets `want`; otherwise a line for a failure message
+/// that lists every wrong case, with a long input cut short.
+fn mismatch(raw: &str, want: Result<(), Reject>) -> Option<String> {
+    let got = canonicalize_v1(raw).map(|_| ());
+    (got != want).then(|| {
+        let shown = match raw.char_indices().nth(40) {
+            Some((cut, _)) => format!("{:?}... ({} bytes)", &raw[..cut], raw.len()),
+            None => format!("{raw:?}"),
+        };
+        format!("{shown}: got {got:?}, want {want:?}")
+    })
+}
+
 fn same_key(a: &str, b: &str) -> bool {
     let (_, ka) = canonicalize_v1(a).unwrap_or_else(|r| panic!("{a:?} rejected as {r:?}"));
     let (_, kb) = canonicalize_v1(b).unwrap_or_else(|r| panic!("{b:?} rejected as {r:?}"));
@@ -403,26 +416,93 @@ fn own_domain_and_subdomains_are_rejected() {
     }
 }
 
-/// Proves FR9 as written, and pins the gap its brief correction records: an
-/// ASCII host is not converted (FR10), FR4 decodes only unreserved escapes,
-/// so a host whose escapes spell UTF-8 is judged in that escaped form. A
-/// WHATWG parser decodes and maps `%EF%BD%93` (U+FF53) to `s`, so this URL
-/// opens `s.example` in a browser. Rejecting it later re-keys nothing.
+/// Proves FR9 as amended and FR4: a host is also judged as a browser
+/// resolves it, its escapes decoded as UTF-8 and mapped, so `%EF%BD%93`
+/// (U+FF53) counts as `s`. The browser forms only reject: an accepted host
+/// keeps its escaped canonical form and its key.
 #[test]
-fn percent_encoded_host_is_judged_as_escaped() {
+fn percent_encoded_host_is_judged_as_a_browser_resolves_it() {
+    assert_rejected("http://%ef%bd%93.example/", Reject::OwnDomain);
+    assert_rejected("http://%EF%BD%93.example/", Reject::OwnDomain);
+    // An escape of an unreserved character decodes under FR4 too.
+    assert_rejected("http://%73.example/", Reject::OwnDomain);
+
     assert_eq!(
-        canonical("http://%ef%bd%93.example/"),
-        "http://%EF%BD%93.example/"
+        canonical("http://%c3%bc.example/"),
+        "http://%C3%BC.example/"
     );
     assert_eq!(
-        submitted("http://%ef%bd%93.example/"),
-        "http://%ef%bd%93.example/"
+        submitted("http://%c3%bc.example/"),
+        "http://%c3%bc.example/"
     );
     assert!(same_key("http://%c3%bc.example/", "http://%C3%BC.example/"));
+    // Its browser form is `xn--tda.example`, the host of `ü.example`, yet the
+    // two keep the keys they had before the amendment.
     assert!(!same_key("http://%C3%BC.example/", "http://ü.example/"));
     assert_eq!(submitted("http://ü.example/"), "http://xn--tda.example/");
-    // An escape of an unreserved character does decode, and is judged.
-    assert_rejected("http://%73.example/", Reject::OwnDomain);
+}
+
+/// Proves FR9 as amended, and FR1 against a step 4 that rejects more.
+/// Rejected by the current browser form (WHATWG domain to ASCII, UTS #46
+/// nontransitional), and by the transitional form only, where a joiner fails
+/// the current form's CheckJoiners but a transitional client drops it.
+/// Accepted: look-alikes whose forms are not the service's domain, hosts
+/// with no browser form (not UTF-8, a decoded delimiter) or an empty one,
+/// and hosts whose transitional form differs but is not `s.example`.
+#[test]
+fn browser_forms_of_the_host_are_judged() {
+    let mut wrong = Vec::new();
+    let mut check = |raw: &str, want: Result<(), Reject>| wrong.extend(mismatch(raw, want));
+
+    // The current form: soft hyphen and zero-width space ignored, full-width
+    // letters mapped, U+3002 mapped to a dot.
+    for raw in [
+        "http://s.ex%C2%ADample/",
+        "http://%E2%80%8Bs.example/",
+        "http://%EF%BC%B3.EXAMPLE/",
+        "http://s%E3%80%82example/",
+        "http://a.%EF%BD%93.example/",
+        "http://%EF%BD%93.example./",
+        "https://%EF%BD%93.example:8443/x",
+    ] {
+        check(raw, Err(Reject::OwnDomain));
+    }
+    // The transitional form only: U+200D and U+200C dropped.
+    for raw in [
+        "http://%E2%80%8Ds.example/",
+        "http://%E2%80%8Cs.example/",
+        "http://s.ex%E2%80%8Dample/",
+    ] {
+        check(raw, Err(Reject::OwnDomain));
+    }
+    // Look-alikes: two trailing dots, a suffix, `nots.example`.
+    for raw in [
+        "http://%EF%BD%93.example../",
+        "http://%EF%BD%93.example.com/",
+        "http://n%EF%BD%8Fts.example/",
+    ] {
+        check(raw, Ok(()));
+    }
+    // No browser form: bytes that are not UTF-8, a decoded `/`, and a host
+    // that maps to nothing; each fails in a browser.
+    for raw in [
+        "http://%FF.example/",
+        "http://s.example%2F.evil.com/",
+        "http://%C2%AD/s.example/x",
+    ] {
+        check(raw, Ok(()));
+    }
+    // The transitional form's cost does not reach `s.example`: `paß` gives
+    // `pass`, `ς` gives `σ`.
+    for raw in ["http://pa%C3%9F.example/", "http://%CF%82.example/"] {
+        check(raw, Ok(()));
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+
+    assert_eq!(
+        canonical("http://pa%C3%9F.example/"),
+        "http://pa%C3%9F.example/"
+    );
 }
 
 /// Proves FR9: any `@` in the authority rejects, even an empty user, and
@@ -444,13 +524,52 @@ fn any_userinfo_is_rejected() {
     assert_accepted("http://example.com/?a=@");
 }
 
-/// Proves FR7 as written: RFC 3986's grammar accepts an http URL with no
-/// authority or an empty host, and the user accepted that at plan approval
-/// (impl-run.md, D1). The last case is the risk D1 records: such a URL is
-/// not judged by FR9's host check.
+/// Proves FR7 as amended: an http(s) URL needs an authority with a
+/// non-empty host, judged on the submitted URL after FR10, so a host that
+/// ToASCII maps to nothing is empty. The host check comes after the scheme
+/// and the grammar, and before the length and FR9's userinfo check.
 #[test]
-fn hostless_urls_follow_rfc3986_literally() {
-    assert_eq!(canonical("HTTP:foo"), "http:foo");
-    assert_eq!(canonical("http:///x"), "http:///x");
-    assert_eq!(canonical("http:///s.example/x"), "http:///s.example/x");
+fn hostless_urls_are_rejected() {
+    let mut wrong = Vec::new();
+    let mut check = |raw: &str, want: Result<(), Reject>| wrong.extend(mismatch(raw, want));
+
+    // No authority. `http:/.//x/y` must never take the form of `http://x/y`.
+    for raw in [
+        "HTTP:foo",
+        "http:s.example/x",
+        "http:/x",
+        "http:/.//x/y",
+        "http:",
+    ] {
+        check(raw, Err(Reject::InvalidUrl));
+    }
+    // An authority with an empty host.
+    for raw in [
+        "http:///x",
+        "https:///s.example/x",
+        "http://:80/x",
+        "http://?q",
+        "http://#f",
+    ] {
+        check(raw, Err(Reject::InvalidUrl));
+    }
+    // Step 1 maps a lone soft hyphen to nothing, which leaves no host.
+    for raw in ["http://\u{AD}/s.example/x", "http://\u{AD}:80/"] {
+        check(raw, Err(Reject::InvalidUrl));
+    }
+    // Order: the host check comes before FR9's userinfo check and the length,
+    // and after the scheme.
+    check("http://u@/x", Err(Reject::InvalidUrl));
+    check("ftp:///x", Err(Reject::BadScheme));
+    check(
+        &format!("http:///{}", "a".repeat(2_048)),
+        Err(Reject::InvalidUrl),
+    );
+    check(
+        &format!("http:{}", "a".repeat(2_048)),
+        Err(Reject::InvalidUrl),
+    );
+    // A one-character host is a host.
+    check("http://a/", Ok(()));
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
