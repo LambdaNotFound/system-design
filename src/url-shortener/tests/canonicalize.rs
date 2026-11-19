@@ -445,8 +445,8 @@ fn percent_encoded_host_is_judged_as_a_browser_resolves_it() {
 /// Proves FR9 as amended, and FR1 against a step 4 that rejects more.
 /// Rejected by the current browser form (WHATWG domain to ASCII, UTS #46
 /// nontransitional), and by the transitional form only, where a joiner fails
-/// the current form's CheckJoiners but a transitional client drops it.
-/// Accepted: look-alikes whose forms are not the service's domain, hosts
+/// the current form's CheckJoiners but a transitional client drops it. The
+/// one trailing dot is judged on each form, after mapping. Accepted: look-alikes whose forms are not the service's domain, hosts
 /// with no browser form (not UTF-8, a decoded delimiter) or an empty one,
 /// and hosts whose transitional form differs but is not `s.example`.
 #[test]
@@ -467,6 +467,16 @@ fn browser_forms_of_the_host_are_judged() {
     ] {
         check(raw, Err(Reject::OwnDomain));
     }
+    // A trailing dot that only the mapping makes, U+3002 or U+FF0E: the one
+    // dot is dropped from the browser form, not from the escaped host. Two
+    // dots after mapping leave one, which is not the service's domain.
+    for raw in [
+        "http://s.example%E3%80%82/",
+        "http://%EF%BD%93.example%EF%BC%8E/",
+    ] {
+        check(raw, Err(Reject::OwnDomain));
+    }
+    check("http://s.example.%E3%80%82/", Ok(()));
     // The transitional form only: U+200D and U+200C dropped.
     for raw in [
         "http://%E2%80%8Ds.example/",
