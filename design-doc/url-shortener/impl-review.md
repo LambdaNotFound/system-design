@@ -128,3 +128,24 @@ Checked: Ownership and borrowing ok, unsafe n/a, Async n/a, Atomics n/a, Errors 
 Worth keeping: the accepted rows are what make this suite worth freezing. `%FF.example`, `s.example%2F.evil.com` and `%C2%AD` kill a step 4 that fails closed on a host with no browser form, and `!same_key(%C3%BC, ü)` beside `pa%C3%9F`'s pinned canonical form kills the tempting fix of decoding the host into the canonical string, which would re-key v1. Without those rows, over-rejecting would pass everything.
 
 Verdict: revise
+
+## A1 tests round 2
+
+Date: 11/19/26
+
+Derivation, carried forward from A1 tests round 1 unchanged (no new amendment or `Scope:` line, and no rebuttal to A1.T1-1): (1) FR7's non-empty host flips D1's hostless acceptances to `InvalidUrl`, the soft-hyphen host included, judged after FR10. (2) FR9 judges the normalized host and both browser forms (escapes decoded as UTF-8, UTS #46 nontransitional; the transitional form pre-maps the joiners, ß, ẞ, ς), minus one trailing dot of each form after mapping, against `s.example` and `*.s.example`. (3) The negative space stays accepted: non-UTF-8 escapes, hosts failing both forms, `paß.example`, lookalikes, two dots after mapping; the browser forms change no key. (4) What this round must show: rows whose trailing dot only the mapping produces, so a trim-before-map implementation fails, and nothing else in the frozen set weakened.
+
+Read: the ledger whole, the spec, the brief with its amendment (still no `Scope:` lines), the Rust checklist, `impl.md` (Mechanisms 1 step 4, the Test plan with its A1 paragraph, Checks, the `A1.T1:` entry, Objection responses), `impl-checks/A1.T1.md` with its three logs, and `tests/canonicalize.rs` from `own_domain_and_subdomains_are_rejected` to the end. The round's source diff, `git diff 272247c 4428bdc -- src/`, touches only `browser_forms_of_the_host_are_judged`: three rows and one doc-comment sentence, as the `A1.T1:` entry says. `diff A1.T0.sha256 A1.T1.sha256` changes one line, `tests/canonicalize.rs`, and the working tree matches `A1.T1.sha256` exactly. The record is `Result: pass`: fmt 0 with an empty log, clippy 0 with no warning, 54 run, the three A1 tests fail on their A1 rows (log lines 38-50 list both new `OwnDomain` rows), the other 51 pass, `Passed before the change: none`. The Revision log's counts match the log.
+
+Probe: idna 1.1.0 from the offline registry in a scratch crate under `mktemp -d`, removed after, on the one new host round 1's probe did not cover: `ｓ.example．` gives `s.example.`; `s.example.。` and `s.example。` give `s.example..` and `s.example.` again.
+
+A1.T1-1: resolved. The trim-before-map implementation now fails: `s.example%E3%80%82` and `%EF%BD%93.example%EF%BC%8E` carry no literal dot to trim, map to `s.example.`, and would be accepted. The two neighbouring wrong fixes fail too: trimming every trailing dot rejects `s.example.%E3%80%82` (row accepted), and trimming one literal dot before mapping and one after rejects the existing `%EF%BD%93.example..` row (accepted).
+A1.T1-2: resolved. Mechanisms, 1, step 4 now says the transitional form's rejections include the current form's for an ASCII service domain, and why both are computed; the reasoning holds (an ASCII current form means no joiner, `ß` or `ς` survived to be pre-mapped).
+
+A1.T2-1 | nit | The doc comment of `browser_forms_of_the_host_are_judged` has one line of about 130 characters ("one trailing dot is judged on each form, after mapping. Accepted: ..."), where the rest of the file wraps at 80; rustfmt leaves comments alone, so the check could not catch it | rewrap the comment when A1.R0 next touches the file; a comment-only change to a frozen test file is not a test change
+
+Checked: Ownership and borrowing n/a, unsafe n/a, Async n/a, Atomics n/a, Errors and panics ok, Arithmetic and casts n/a, Traits and API evolution ok, Performance patterns worth flagging n/a, Naming ok, Idiom ok, Tests and tooling ok
+
+Worth keeping: the three new rows sit in their own block with the rule stated beside them, and the accepted `s.example.%E3%80%82` is what makes the pair honest: without it the obvious "fix" for the `OwnDomain` rows, trimming every trailing dot, would pass, and it would over-reject against FR1. A1.R0 should drop exactly one dot after `domain_to_ascii_cow`, per form; the normalized host keeps its own existing one-dot rule.
+
+Verdict: approve
