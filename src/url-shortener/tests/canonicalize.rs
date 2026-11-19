@@ -446,9 +446,10 @@ fn percent_encoded_host_is_judged_as_a_browser_resolves_it() {
 /// Rejected by the current browser form (WHATWG domain to ASCII, UTS #46
 /// nontransitional), and by the transitional form only, where a joiner fails
 /// the current form's CheckJoiners but a transitional client drops it. The
-/// one trailing dot is judged on each form, after mapping. Accepted: look-alikes whose forms are not the service's domain, hosts
-/// with no browser form (not UTF-8, a decoded delimiter) or an empty one,
-/// and hosts whose transitional form differs but is not `s.example`.
+/// one trailing dot is judged on each form, after mapping. Accepted:
+/// look-alikes whose forms are not the service's domain, hosts with no
+/// browser form (not UTF-8, a decoded delimiter) or an empty one, and hosts
+/// whose transitional form differs but is not `s.example`.
 #[test]
 fn browser_forms_of_the_host_are_judged() {
     let mut wrong = Vec::new();

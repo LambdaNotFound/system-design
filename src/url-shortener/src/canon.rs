@@ -232,9 +232,20 @@ fn percent_encode_non_ascii(s: &str, out: &mut String) {
     }
 }
 
+/// A URL that passed step 2, so it has an authority with a non-empty host.
+struct Valid<'a> {
+    scheme: &'a str,
+    authority: Authority<'a>,
+    path: &'a str,
+    query: Option<&'a str>,
+    fragment: Option<&'a str>,
+}
+
 /// Step 2, FR7, in order: a valid scheme prefix, `http` or `https`, the
-/// RFC 3986 `URI` rule, then the length.
-fn validate(s: &str) -> Result<Parts<'_>, Reject> {
+/// RFC 3986 `URI` rule, an authority with a non-empty host, then the length.
+/// The host is the submitted URL's, so one that step 1 emptied counts as
+/// empty.
+fn validate(s: &str) -> Result<Valid<'_>, Reject> {
     let parts = split(s).ok_or(Reject::InvalidUrl)?;
     if !parts.scheme.eq_ignore_ascii_case("http") && !parts.scheme.eq_ignore_ascii_case("https") {
         return Err(Reject::BadScheme);
@@ -242,10 +253,20 @@ fn validate(s: &str) -> Result<Parts<'_>, Reject> {
     if !follows_uri_rule(&parts) {
         return Err(Reject::InvalidUrl);
     }
+    let authority = parts
+        .authority
+        .filter(|a| !a.host.is_empty())
+        .ok_or(Reject::InvalidUrl)?;
     if s.len() > MAX_LEN {
         return Err(Reject::TooLong);
     }
-    Ok(parts)
+    Ok(Valid {
+        scheme: parts.scheme,
+        authority,
+        path: parts.path,
+        query: parts.query,
+        fragment: parts.fragment,
+    })
 }
 
 /// RFC 3986 §3 for a string `split` accepted: `hier-part`, query and
@@ -382,38 +403,32 @@ fn is_ipv4(s: &str) -> bool {
 }
 
 /// Steps 3 and 4, FR4 then FR9: the canonical string, or the rejection.
-fn normalize_and_judge(p: &Parts<'_>) -> Result<String, Reject> {
+fn normalize_and_judge(p: &Valid<'_>) -> Result<String, Reject> {
+    let a = &p.authority;
+    if a.userinfo.is_some() {
+        return Err(Reject::Userinfo);
+    }
+    let mut host = String::with_capacity(a.host.len());
+    normalize_escapes(a.host, true, &mut host);
+    if is_own_domain(&host)
+        || browser_form(&host, false).is_some_and(|f| is_own_domain(&f))
+        || browser_form(&host, true).is_some_and(|f| is_own_domain(&f))
+    {
+        return Err(Reject::OwnDomain);
+    }
     let scheme = p.scheme.to_ascii_lowercase();
     let mut form = String::with_capacity(MAX_LEN);
     form.push_str(&scheme);
-    form.push(':');
-    match &p.authority {
-        Some(a) => {
-            if a.userinfo.is_some() {
-                return Err(Reject::Userinfo);
-            }
-            let mut host = String::with_capacity(a.host.len());
-            normalize_escapes(a.host, true, &mut host);
-            if is_own_domain(&host) {
-                return Err(Reject::OwnDomain);
-            }
-            form.push_str("//");
-            form.push_str(&host);
-            if let Some(port) = a.port.filter(|port| !is_default_port(&scheme, port)) {
-                form.push(':');
-                form.push_str(port);
-            }
-            let mut path = String::with_capacity(p.path.len());
-            normalize_escapes(p.path, false, &mut path);
-            let path = remove_dot_segments(&path);
-            form.push_str(if path.is_empty() { "/" } else { &path });
-        }
-        // A hostless URL (impl-run.md, D1) keeps its dot-segments. Removing
-        // them could start the path with `//`, as `/.//x/y` becomes
-        // `//x/y`, and the form would then spell `http://x/y`, another URL
-        // that would share its key (NFR7).
-        None => normalize_escapes(p.path, false, &mut form),
+    form.push_str("://");
+    form.push_str(&host);
+    if let Some(port) = a.port.filter(|port| !is_default_port(&scheme, port)) {
+        form.push(':');
+        form.push_str(port);
     }
+    let mut path = String::with_capacity(p.path.len());
+    normalize_escapes(p.path, false, &mut path);
+    let path = remove_dot_segments(&path);
+    form.push_str(if path.is_empty() { "/" } else { &path });
     if let Some(q) = p.query {
         form.push('?');
         normalize_escapes(q, false, &mut form);
@@ -474,11 +489,62 @@ fn is_default_port(scheme: &str, port: &str) -> bool {
     port.is_empty() || (scheme == "http" && value == "80") || (scheme == "https" && value == "443")
 }
 
-/// FR9 on the normalized host, one trailing dot ignored.
+/// FR9 on one form of the host, one trailing dot ignored. The dot is
+/// dropped from the form as given, so a browser form must be computed first:
+/// a mapping can make the dot, as U+3002 does in `s.example%E3%80%82`.
 fn is_own_domain(host: &str) -> bool {
     let host = host.strip_suffix('.').unwrap_or(host);
     host.strip_suffix(SERVICE_DOMAIN)
         .is_some_and(|label| label.is_empty() || label.ends_with('.'))
+}
+
+/// Step 4's browser form of a normalized host (rfc.md, Appendix, Browser
+/// forms of a host): every escape decoded to a byte, the bytes read as UTF-8,
+/// with `transitional` UTS #46's transitional pre-mapping, then WHATWG domain
+/// to ASCII, the call step 1 makes. `None` when the host has no such form:
+/// its bytes are not UTF-8 or the call fails, as a browser fails to open it.
+/// An IP literal is not a domain, so it has none.
+fn browser_form(host: &str, transitional: bool) -> Option<String> {
+    if host.starts_with('[') {
+        return None;
+    }
+    let b = host.as_bytes();
+    let mut bytes = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' {
+            bytes.push(hex_value(b[i + 1]) << 4 | hex_value(b[i + 2]));
+            i += 3;
+        } else {
+            bytes.push(b[i]);
+            i += 1;
+        }
+    }
+    let mut decoded = String::from_utf8(bytes).ok()?;
+    if transitional {
+        decoded = transitional_premap(&decoded);
+    }
+    idna::domain_to_ascii_cow(decoded.as_bytes(), AsciiDenyList::URL)
+        .ok()
+        .map(|ascii| ascii.into_owned())
+}
+
+/// UTS #46 transitional processing, applied before the nontransitional
+/// mapping: U+200C and U+200D dropped, `ß` and `ẞ` to `ss`, `ς` to `σ`. The
+/// same five code points as idna 1.1.0's private `map_transitional`
+/// (`src/deprecated.rs`), whose only public caller cannot take the WHATWG
+/// deny list.
+fn transitional_premap(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '\u{200C}' | '\u{200D}' => {}
+            'ß' | 'ẞ' => out.push_str("ss"),
+            'ς' => out.push('σ'),
+            _ => out.push(ch),
+        }
+    }
+    out
 }
 
 /// RFC 3986 §5.2.4.
@@ -573,6 +639,21 @@ mod tests {
         ] {
             assert!(!is_ip_literal_body(bad), "{bad:?}");
         }
+    }
+
+    /// The transitional pre-mapping changes exactly its five code points.
+    /// With `s.example` as the service's domain, the `ß`, `ẞ` and `ς` rules
+    /// change no FR9 answer, so only this test shows them.
+    #[test]
+    fn transitional_premapping_matches_idna() {
+        assert_eq!(transitional_premap("pa\u{df}"), "pass");
+        assert_eq!(transitional_premap("\u{1e9e}a"), "ssa");
+        assert_eq!(transitional_premap("\u{3c2}\u{3c3}"), "\u{3c3}\u{3c3}");
+        assert_eq!(transitional_premap("a\u{200c}b\u{200d}c"), "abc");
+        assert_eq!(
+            transitional_premap("S.\u{ff53}\u{fc}\u{ad}\u{200b}\u{3a3}-x"),
+            "S.\u{ff53}\u{fc}\u{ad}\u{200b}\u{3a3}-x"
+        );
     }
 
     /// RFC 3986 §5.2.4's own examples.
